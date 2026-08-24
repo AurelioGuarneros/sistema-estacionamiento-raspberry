@@ -1,0 +1,50 @@
+PRUEBA DE PENSIONADOS EN ENTRADA
+================================
+
+1. Abra una terminal en la Raspberry de Entrada:
+
+   cd /home/pi/Documentos/entrega_ips/Entrada
+
+2. Primero pruebe solamente el lector (esta prueba NO mueve la barrera):
+
+   python3 probar_lector_rfid.py
+
+3. Acerque la tarjeta. La terminal debe mostrar:
+
+   - Lectura cruda y longitud recibida.
+   - "tarjeta encontrada" si existe en MariaDB.
+   - Fecha_vigencia, Estatus, Vigencia y Tolerancia.
+
+4. Después ejecute el programa normal:
+
+   python3 EntradaFONLow.py
+
+5. Para autorizar la entrada deben cumplirse estas condiciones:
+
+   - El vehículo debe estar sobre el sensor (la pantalla dice "Hay auto").
+   - La tarjeta debe existir en la tabla Pensionados.
+   - Vigencia debe decir "Activo".
+   - Fecha_vigencia más la tolerancia no debe estar vencida.
+   - Estatus no debe decir "Adentro".
+
+6. Al autorizar, la terminal muestra:
+
+   RFID autorizado: ... - abre barrera por 3 segundos
+
+   Se crea un registro en MovimientosPens y Pensionados.Estatus cambia a
+   "Adentro". Una segunda lectura no vuelve a abrir la barrera.
+
+MENSAJES DE DIAGNOSTICO
+-----------------------
+
+"Tarjeta leída, pero no se detecta vehículo"
+    El lector funciona. Revise el sensor de presencia y BanLoop.
+
+"Tarjeta no registrada"
+    El lector funciona y hay conexión; el número no existe en Pensionados.
+
+"Tarjeta sin vigencia activa" / "Vigencia vencida"
+    Revise Vigencia, Fecha_vigencia y Tolerancia en MariaDB.
+
+"Error al validar RFID; revise la terminal"
+    La terminal imprime el detalle, por ejemplo una falla de conexión.

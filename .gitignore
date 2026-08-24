@@ -1,0 +1,26 @@
+# Credenciales y configuracion privada
+.env
+.env.*
+!.env.example
+
+# Respaldos y datos operativos
+*.sql
+*.sql.zip
+*.db
+*.sqlite*
+TPV/Cortes/*.txt
+TPV/Reimpresion_Cortes/*.txt
+
+# Versiones historicas no activas
+TPV/cobroFONLow40624.py
+
+# Python y sistema
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+Thumbs.db
+
+# Archivos generados durante impresion
+reducida.png
+*.zip

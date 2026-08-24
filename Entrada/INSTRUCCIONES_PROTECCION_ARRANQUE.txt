@@ -1,0 +1,27 @@
+PROTECCION DE BARRERA AL INICIAR ENTRADA
+========================================
+
+El programa ahora inicia la salida GPIO 13 en nivel alto (barrera cerrada) y
+no acepta el boton hasta detectar primero que fue soltado.
+
+Prueba:
+
+1. Inicie el programa sin presionar el boton:
+
+   cd /home/pi/Documentos/entrega_ips/Entrada
+   python3 EntradaFONLow.py
+
+2. Aunque durante el arranque la entrada del boton aparezca momentaneamente
+   en alto, la terminal NO debe mostrar "mando abrir barrera".
+
+3. Si el boton permanece en alto, la pantalla mostrara "SUELTE BOTON". Al
+   soltarlo, el sistema queda armado.
+
+4. Sin automovil, una pulsacion muestra "SIN AUTO - BOTON IGNORADO" y no abre.
+
+5. Con automovil detectado, suelte y presione el boton. Entonces debe imprimir
+   un solo boleto y abrir una sola vez.
+
+Si siempre aparece "SUELTE BOTON" aun sin tocarlo, mida GPIO 18 respecto a GND:
+el programa espera aproximadamente 0 V suelto y 3.3 V presionado. Nunca aplique
+5 V directamente a un GPIO de la Raspberry Pi.
