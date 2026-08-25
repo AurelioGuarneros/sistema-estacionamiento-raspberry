@@ -8,6 +8,8 @@ Punto de partida confiable del sistema de estacionamiento con tres estaciones:
 
 La base de datos central es MariaDB y se ejecuta en la Raspberry TPV.
 
+La estructura versionada, sin datos operativos, se encuentra en `database/`.
+
 ## Seguridad
 
 El repositorio no contiene contrasenas, respaldos de MariaDB ni cortes operativos. La configuracion privada se entrega a cada Raspberry mediante variables de entorno. `.env.example` documenta los nombres necesarios, pero nunca debe contener valores reales.

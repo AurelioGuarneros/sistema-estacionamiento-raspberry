@@ -6,6 +6,8 @@
 # Respaldos y datos operativos
 *.sql
 *.sql.zip
+!database/*.sql
+!database/migrations/*.sql
 *.db
 *.sqlite*
 TPV/Cortes/*.txt
