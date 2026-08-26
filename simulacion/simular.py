@@ -30,7 +30,8 @@ def construir_parser():
     sub.add_parser("demo-multiple", help="Procesar varios boletos en distinto orden")
     preparar = sub.add_parser("preparar-rfid", help="Crear pensionado de laboratorio")
     preparar.add_argument("--rfid", type=int, default=9900001)
-    sub.add_parser("demo-rfid", help="Probar entrada, salida y segundo uso RFID")
+    sub.add_parser("demo-rfid", help="Probar varios pensionados en distinto orden")
+    sub.add_parser("demo-corte", help="Cobrar boletos y generar un corte de prueba")
     return parser
 
 
@@ -114,17 +115,44 @@ def main():
     elif args.punto == "preparar-rfid":
         print(sistema.db.preparar_pensionado_prueba(args.rfid))
     elif args.punto == "demo-rfid":
-        tarjeta = 9900001
-        print(sistema.db.preparar_pensionado_prueba(tarjeta))
-        print(sistema.db.entrada_pensionado(tarjeta, datetime.now()))
-        print(sistema.db.salida_pensionado(tarjeta, datetime.now()))
+        tarjetas = (9900001, 9900002, 9900003)
+        print("1. Se preparan tres pensionados independientes")
+        for tarjeta in tarjetas:
+            print("  ", sistema.db.preparar_pensionado_prueba(tarjeta))
+        print("2. Entran en orden 1, 2, 3")
+        for tarjeta in tarjetas:
+            print(f"   {tarjeta}: {sistema.db.entrada_pensionado(tarjeta, datetime.now())}")
+        print("3. Salen en orden 2, 1, 3")
+        for tarjeta in (tarjetas[1], tarjetas[0], tarjetas[2]):
+            print(f"   {tarjeta}: {sistema.db.salida_pensionado(tarjeta, datetime.now())}")
         try:
-            sistema.db.salida_pensionado(tarjeta, datetime.now())
+            sistema.db.salida_pensionado(tarjetas[0], datetime.now())
         except ErrorSimulacion as error:
             print(f"Segunda salida rechazada correctamente: {error}")
         else:
             raise ErrorSimulacion("La tarjeta abrió dos veces en la salida.")
-        print("RESULTADO: FLUJO RFID CORRECTO")
+        print("RESULTADO: VARIOS PENSIONADOS Y ORDEN DISTINTO CORRECTOS")
+    elif args.punto == "demo-corte":
+        ahora = datetime.now().replace(microsecond=0)
+        print("1. Se expiden y cobran dos boletos")
+        primero = sistema.expedir("CORTE-1", ahora - timedelta(minutes=95))
+        segundo = sistema.expedir("CORTE-2", ahora - timedelta(minutes=30))
+        cotizacion = sistema.cotizar(primero.codigo, PROMOCION_BA, ahora)
+        print(
+            f"   Folio {primero.folio}: normal ${cotizacion.importe_normal:.2f}; "
+            f"descuento ${cotizacion.descuento:.2f}; final ${cotizacion.importe_final:.2f}"
+        )
+        sistema.cobrar(primero.codigo, PROMOCION_BA, ahora)
+        sistema.cobrar(segundo.codigo, "", ahora)
+        print("2. Se genera el corte")
+        corte = sistema.generar_corte(ahora)
+        print(
+            f"   Corte {corte.folio}: {corte.resumen.boletos} boletos; "
+            f"total ${corte.resumen.importe:.2f}"
+        )
+        print(f"   Comprobante: {corte.comprobante}")
+        print(f"   Correo simulado: {corte.correo_simulado}")
+        print("RESULTADO: CORTE GENERADO CORRECTAMENTE")
 
 
 if __name__ == "__main__":

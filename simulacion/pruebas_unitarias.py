@@ -5,9 +5,10 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from nucleo import (
-    calcular_tarifa, cifrar_folio, crear_codigo_salida, descifrar_folio,
-    ErrorSimulacion, leer_codigo_salida, normalizar_promocion, ResultadoSalida,
-    SistemaSimulado, texto_permanencia, tolerancia_restante,
+    calcular_tarifa, cifrar_folio, construir_cotizacion, crear_codigo_salida,
+    descifrar_folio, ErrorSimulacion, leer_codigo_salida, normalizar_promocion,
+    normalizar_tarjeta, ResumenCorte, ResultadoSalida, SistemaSimulado,
+    texto_permanencia, tolerancia_restante,
 )
 
 
@@ -19,22 +20,34 @@ class RepositorioMemoria:
         folio = len(self.registros) + 1
         self.registros[folio] = {
             "entrada": fecha, "placa": placa, "pago": None, "usado": False,
+            "importe": None, "tarifa": None, "corte": 0,
         }
         return folio
+
+    def cotizar(self, folio, promocion, fecha_consulta):
+        fila = self.registros[folio]
+        if fila["pago"] is not None:
+            raise ErrorSimulacion("Este boleto ya fue cobrado.")
+        return construir_cotizacion(
+            folio, fila["entrada"], promocion, fecha_consulta
+        )
 
     def cobrar(self, folio, promocion, fecha_pago):
         fila = self.registros[folio]
         if fila["pago"] is not None:
             raise ErrorSimulacion("Este boleto ya fue cobrado.")
-        tarifa = normalizar_promocion(promocion)
-        minutos = int((fecha_pago - fila["entrada"]).total_seconds() // 60)
+        cotizacion = construir_cotizacion(
+            folio, fila["entrada"], promocion, fecha_pago
+        )
         fila["pago"] = fecha_pago
+        fila["tarifa"] = cotizacion["tarifa"]
+        fila["importe"] = cotizacion["importe_final"]
         return {
             "entrada": fila["entrada"],
             "pago": fecha_pago,
-            "permanencia": texto_permanencia(fila["entrada"], fecha_pago),
-            "tarifa": tarifa,
-            "importe": calcular_tarifa(minutos, tarifa),
+            "permanencia": cotizacion["permanencia"],
+            "tarifa": cotizacion["tarifa"],
+            "importe": cotizacion["importe_final"],
         }
 
     def autorizar_salida(self, folio, fecha_qr, ahora):
@@ -47,6 +60,31 @@ class RepositorioMemoria:
             return ResultadoSalida(folio, False, "Boleto ya utilizado")
         fila["usado"] = True
         return ResultadoSalida(folio, True, "Abre barrera simulada", 900)
+
+    def resumen_corte(self, fecha_fin=None):
+        fin = fecha_fin or datetime.now().replace(microsecond=0)
+        filas = [
+            (folio, fila) for folio, fila in self.registros.items()
+            if fila["pago"] is not None and fila["corte"] == 0
+        ]
+        inicio = min((fila["entrada"] for _, fila in filas), default=fin)
+        return ResumenCorte(
+            inicio, fin, len(filas),
+            sum(fila["importe"] for _, fila in filas),
+            tuple(folio for folio, _ in filas),
+            sum(fila["pago"] is None for fila in self.registros.values()), 0,
+        )
+
+    def generar_corte(self, fecha_fin=None):
+        resumen = self.resumen_corte(fecha_fin)
+        if not resumen.folios:
+            raise ErrorSimulacion("No hay cobros pendientes para generar el corte.")
+        numero = 1 + max(
+            (fila["corte"] for fila in self.registros.values()), default=0
+        )
+        for folio in resumen.folios:
+            self.registros[folio]["corte"] = numero
+        return numero, resumen
 
 
 class PruebasNucleo(unittest.TestCase):
@@ -68,6 +106,21 @@ class PruebasNucleo(unittest.TestCase):
         self.assertEqual(calcular_tarifa(120, promo), 5)
         self.assertEqual(calcular_tarifa(121, promo), 15)
         self.assertEqual(calcular_tarifa(24 * 60, promo), 225)
+
+    def test_cotizacion_muestra_importe_antes_y_despues_de_promocion(self):
+        entrada = datetime(2026, 8, 26, 8, 0, 0)
+        consulta = entrada + timedelta(minutes=95)
+        normal = construir_cotizacion(1, entrada, "", consulta)
+        promocion = construir_cotizacion(1, entrada, "BA BODEGA AURRERA", consulta)
+        self.assertEqual(normal["importe_final"], 20)
+        self.assertEqual(promocion["importe_normal"], 20)
+        self.assertEqual(promocion["descuento"], 15)
+        self.assertEqual(promocion["importe_final"], 5)
+
+    def test_tarjeta_vacia_usa_la_seleccion(self):
+        self.assertEqual(normalizar_tarjeta("", "9900002"), 9900002)
+        with self.assertRaisesRegex(ErrorSimulacion, "Capture o seleccione"):
+            normalizar_tarjeta("", "")
 
     def test_tolerancia_salida_15_minutos(self):
         pago = datetime(2026, 8, 26, 1, 0, 0)
@@ -122,6 +175,26 @@ class PruebasNucleo(unittest.TestCase):
             sistema.cobrar(entrada.codigo)
             with self.assertRaisesRegex(ErrorSimulacion, "ya fue cobrado"):
                 sistema.cobrar(entrada.codigo)
+
+    def test_corte_incluye_cobrados_una_sola_vez(self):
+        with TemporaryDirectory() as temporal:
+            repositorio = RepositorioMemoria()
+            sistema = SistemaSimulado(Path(temporal), repositorio)
+            ahora = datetime.now().replace(microsecond=0)
+            primero = sistema.expedir("AUTO-1", ahora - timedelta(minutes=95))
+            segundo = sistema.expedir("AUTO-2", ahora - timedelta(minutes=30))
+            sistema.expedir("PENDIENTE", ahora - timedelta(minutes=10))
+            sistema.cobrar(primero.codigo, "BA BODEGA AURRERA", ahora)
+            sistema.cobrar(segundo.codigo, "", ahora)
+
+            corte = sistema.generar_corte(ahora)
+            self.assertEqual(corte.resumen.boletos, 2)
+            self.assertEqual(corte.resumen.importe, 15)
+            self.assertEqual(corte.resumen.pendientes_cobro, 1)
+            self.assertTrue(corte.comprobante.is_file())
+            self.assertTrue(corte.correo_simulado.is_file())
+            with self.assertRaisesRegex(ErrorSimulacion, "No hay cobros pendientes"):
+                sistema.generar_corte(ahora)
 
 
 if __name__ == "__main__":

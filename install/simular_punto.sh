@@ -22,7 +22,7 @@ case "${1:-}" in
   gui)
     exec "$PYTHON" "$SCRIPT_DIR/simulador_gui.py"
     ;;
-  entrada|tpv|salida|demo|demo-multiple|preparar-rfid|demo-rfid)
+  entrada|tpv|salida|demo|demo-multiple|preparar-rfid|demo-rfid|demo-corte)
     exec "$PYTHON" "$SCRIPT_DIR/simular.py" "$@"
     ;;
   pruebas)
@@ -35,6 +35,7 @@ case "${1:-}" in
       "  $0 demo" \
       "  $0 demo-multiple" \
       "  $0 demo-rfid" \
+      "  $0 demo-corte" \
       "  $0 preparar-rfid [--rfid TARJETA]" \
       "  $0 entrada [--placa PLACA] [--hace-minutos N] [--rfid TARJETA]" \
       "  $0 tpv CODIGO_QR [--promocion 'BA BODEGA AURRERA 114254']" \
