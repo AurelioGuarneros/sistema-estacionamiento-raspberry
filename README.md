@@ -34,7 +34,9 @@ TPV/
 
 ## Próximas etapas
 
-1. Instalacion reproducible en las Raspberry.
-2. Empaquetado ejecutable sin distribuir el codigo fuente directamente.
-3. Configuracion centralizada de IP y credenciales.
-4. Mosquitto y Django para operacion, reportes y consulta remota.
+1. Probar `install/instalar.sh` en una laptop con `--modo-simulacion`.
+2. Instalar y validar los servicios en una Raspberry de prueba.
+3. Empaquetar ejecutables sin distribuir directamente el codigo fuente.
+4. Incorporar Mosquitto y Django para operacion, reportes y consulta remota.
+
+Las instrucciones del instalador y de los servicios están en `install/README.md`.

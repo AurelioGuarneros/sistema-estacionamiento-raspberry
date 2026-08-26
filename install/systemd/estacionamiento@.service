@@ -1,0 +1,21 @@
+[Unit]
+Description=Sistema de estacionamiento - @PUNTO@
+After=network-online.target graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USUARIO@
+Group=estacionamiento
+SupplementaryGroups=gpio lp dialout
+EnvironmentFile=/etc/estacionamiento/config.env
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/@USUARIO@/.Xauthority
+WorkingDirectory=/opt/estacionamiento/@CARPETA@
+ExecStart=/opt/estacionamiento/venv/bin/python /opt/estacionamiento/@CARPETA@/@EJECUTABLE@
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+
+[Install]
+WantedBy=graphical.target
