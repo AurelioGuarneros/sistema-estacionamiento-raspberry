@@ -21,6 +21,7 @@ TABLA_CIFRADO = {
 TABLA_DESCIFRADO = {valor: clave for clave, valor in TABLA_CIFRADO.items()}
 PROMOCION_BA = "BA BODEGA AURRERA 114254"
 TOLERANCIA_SALIDA_MINUTOS = 15
+VERSION_SIMULADOR = "0.4-recobros"
 
 
 class ErrorSimulacion(RuntimeError):
@@ -182,7 +183,7 @@ class ResumenCorte:
     fin: datetime
     boletos: int
     importe: float
-    folios: tuple[int, ...]
+    folios: tuple[str, ...]
     pendientes_cobro: int
     pensionados_adentro: int
 
@@ -215,6 +216,40 @@ def construir_cotizacion(
     }
 
 
+def construir_cotizacion_recobro(
+    folio: int, entrada: datetime, ultimo_pago: datetime,
+    promocion: str, fecha_consulta: datetime,
+) -> dict:
+    """Cobra sólo el tiempo transcurrido después de la tolerancia anterior."""
+    if (promocion or "").strip():
+        raise ErrorSimulacion("La promoción no se aplica nuevamente en un recobro.")
+    segundos_excedidos = int(
+        (fecha_consulta - ultimo_pago).total_seconds()
+    ) - TOLERANCIA_SALIDA_MINUTOS * 60
+    if segundos_excedidos <= 0:
+        restantes = tolerancia_restante(ultimo_pago, fecha_consulta)
+        raise ErrorSimulacion(
+            "Este boleto ya fue pagado; todavía tiene "
+            f"{restantes // 60:02d}:{restantes % 60:02d} de tolerancia."
+        )
+    minutos_excedidos = max(1, (segundos_excedidos + 59) // 60)
+    importe = calcular_tarifa(minutos_excedidos, "Normal")
+    return {
+        "folio": int(folio),
+        "entrada": entrada,
+        "consulta": fecha_consulta,
+        "permanencia": (
+            f"Tiempo adicional después de tolerancia: {minutos_excedidos} minuto(s)"
+        ),
+        "tarifa": "Recobro",
+        "importe_normal": importe,
+        "descuento": 0,
+        "importe_final": importe,
+        "minutos_excedidos": minutos_excedidos,
+        "ultimo_pago": ultimo_pago,
+    }
+
+
 def normalizar_tarjeta(valor: object, seleccion: object = "") -> int:
     """Acepta la lectura RFID o, si está vacía, la tarjeta seleccionada."""
     texto = str(valor or "").strip() or str(seleccion or "").strip()
@@ -232,6 +267,11 @@ class RepositorioMariaDB:
         self.user = os.environ.get("ESTACIONAMIENTO_DB_USER", "")
         self.password = os.environ.get("ESTACIONAMIENTO_DB_PASSWORD", "")
         self.database = os.environ.get("ESTACIONAMIENTO_DB_NAME", "Parqueadero1_prueba")
+        if not self.database.lower().endswith("_prueba"):
+            raise ErrorSimulacion(
+                "La simulación sólo puede utilizar una base cuyo nombre termine en _prueba."
+            )
+        self._asegurar_tabla_recobros()
 
     def abrir(self):
         return pymysql.connect(
@@ -244,6 +284,24 @@ class RepositorioMariaDB:
             cursorclass=pymysql.cursors.DictCursor,
             autocommit=False,
         )
+
+    def _asegurar_tabla_recobros(self) -> None:
+        """Aplica la migración compatible con bases de laboratorio ya creadas."""
+        with self.abrir() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "CREATE TABLE IF NOT EXISTS Recobros ("
+                    "Id_recobro BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, "
+                    "Id_entrada BIGINT UNSIGNED NOT NULL, "
+                    "Fecha_pago DATETIME NOT NULL, "
+                    "Minutos_excedidos INT NOT NULL, "
+                    "Importe FLOAT NOT NULL, CorteInc INT NOT NULL DEFAULT 0, "
+                    "PRIMARY KEY (Id_recobro), KEY Id_entrada (Id_entrada), "
+                    "CONSTRAINT Recobros_ibfk_1 FOREIGN KEY (Id_entrada) "
+                    "REFERENCES Entradas (id) ON UPDATE CASCADE) "
+                    "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+                )
+            conexion.commit()
 
     def verificar(self) -> tuple[str, str, datetime]:
         with self.abrir() as conexion:
@@ -264,13 +322,17 @@ class RepositorioMariaDB:
         return int(folio)
 
     def listar_pendientes_cobro(self) -> list[dict]:
-        """Boletos expedidos que todavía pueden cobrarse, en cualquier orden."""
+        """Incluye boletos nuevos y pagados cuya tolerancia ya venció."""
+        ahora = datetime.now().replace(microsecond=0)
         with self.abrir() as conexion:
             with conexion.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, Entrada, COALESCE(Placas, '') Placas "
-                    "FROM Entradas WHERE Salida IS NULL "
-                    "AND COALESCE(Placas, '') <> 'Afuera' ORDER BY id"
+                    "SELECT id, Entrada, Salida, COALESCE(Placas, '') Placas, "
+                    "CASE WHEN Salida IS NULL THEN 'Cobro inicial' ELSE 'Recobro' END Tipo "
+                    "FROM Entradas WHERE COALESCE(Placas, '') <> 'Afuera' "
+                    "AND (Salida IS NULL OR TIMESTAMPDIFF(SECOND, Salida, %s) > %s) "
+                    "ORDER BY id",
+                    (ahora, TOLERANCIA_SALIDA_MINUTOS * 60),
                 )
                 filas = cursor.fetchall()
         for fila in filas:
@@ -321,10 +383,12 @@ class RepositorioMariaDB:
                 fila = cursor.fetchone()
         if fila is None:
             raise ErrorSimulacion("No existe un auto con ese boleto.")
-        if fila["Salida"] is not None:
-            raise ErrorSimulacion("Este boleto ya fue cobrado.")
         if fila["Placas"] == "Afuera":
             raise ErrorSimulacion("Este boleto ya fue utilizado en la salida.")
+        if fila["Salida"] is not None:
+            return construir_cotizacion_recobro(
+                folio, fila["Entrada"], fila["Salida"], promocion, fecha_consulta
+            )
         return construir_cotizacion(folio, fila["Entrada"], promocion, fecha_consulta)
 
     def cobrar(self, folio: int, promocion: str, fecha_pago: datetime) -> dict:
@@ -339,23 +403,44 @@ class RepositorioMariaDB:
                     fila = cursor.fetchone()
                     if fila is None:
                         raise ErrorSimulacion("No existe un auto con ese boleto.")
-                    if fila["Salida"] is not None:
-                        raise ErrorSimulacion("Este boleto ya fue cobrado.")
                     if fila["Placas"] == "Afuera":
                         raise ErrorSimulacion("Este boleto ya fue utilizado en la salida.")
                     entrada = fila["Entrada"]
-                    cotizacion = construir_cotizacion(
-                        folio, entrada, promocion, fecha_pago
+                    ultimo_pago = fila["Salida"]
+                    es_recobro = ultimo_pago is not None
+                    cotizacion = (
+                        construir_cotizacion_recobro(
+                            folio, entrada, ultimo_pago, promocion, fecha_pago
+                        )
+                        if es_recobro else
+                        construir_cotizacion(folio, entrada, promocion, fecha_pago)
                     )
                     tarifa = cotizacion["tarifa"]
                     importe = cotizacion["importe_final"]
-                    permanencia = cotizacion["permanencia"]
+                    permanencia = texto_permanencia(entrada, fecha_pago)
                     qr_promo = PROMOCION_BA if tarifa != "Normal" else None
-                    cursor.execute(
-                        "UPDATE Entradas SET Salida=%s, TiempoTotal=%s, Importe=%s, "
-                        "vobo='lmf', TarifaPreferente=%s, QRpromo=%s WHERE id=%s AND Salida IS NULL",
-                        (fecha_pago, permanencia, importe, tarifa, qr_promo, folio),
-                    )
+                    if es_recobro:
+                        cursor.execute(
+                            "INSERT INTO Recobros "
+                            "(Id_entrada, Fecha_pago, Minutos_excedidos, Importe, CorteInc) "
+                            "VALUES (%s, %s, %s, %s, 0)",
+                            (
+                                folio, fecha_pago,
+                                cotizacion["minutos_excedidos"], importe,
+                            ),
+                        )
+                        cursor.execute(
+                            "UPDATE Entradas SET Salida=%s, TiempoTotal=%s "
+                            "WHERE id=%s AND Salida=%s",
+                            (fecha_pago, permanencia, folio, ultimo_pago),
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE Entradas SET Salida=%s, TiempoTotal=%s, Importe=%s, "
+                            "vobo='lmf', TarifaPreferente=%s, QRpromo=%s "
+                            "WHERE id=%s AND Salida IS NULL",
+                            (fecha_pago, permanencia, importe, tarifa, qr_promo, folio),
+                        )
                     if cursor.rowcount != 1:
                         raise ErrorSimulacion("El boleto cambió mientras se procesaba el cobro.")
                 conexion.commit()
@@ -365,20 +450,25 @@ class RepositorioMariaDB:
                     "permanencia": permanencia,
                     "tarifa": tarifa,
                     "importe": importe,
+                    "es_recobro": es_recobro,
                 }
             except Exception:
                 conexion.rollback()
                 raise
 
     def listar_pendientes_corte(self) -> list[dict]:
-        """Cobros realizados que aún no pertenecen a ningún corte."""
+        """Cobros iniciales y recobros aún no incluidos en un corte."""
         with self.abrir() as conexion:
             with conexion.cursor() as cursor:
                 cursor.execute(
-                    "SELECT id, Salida, COALESCE(TarifaPreferente, 'Normal') Tarifa, "
-                    "COALESCE(Importe, 0) Importe FROM Entradas "
-                    "WHERE CorteInc=0 AND Salida IS NOT NULL AND Importe IS NOT NULL "
-                    "ORDER BY Salida, id"
+                    "SELECT CAST(id AS CHAR) id, Salida, "
+                    "COALESCE(TarifaPreferente, 'Normal') Tarifa, "
+                    "'Cobro inicial' Concepto, COALESCE(Importe, 0) Importe "
+                    "FROM Entradas WHERE CorteInc=0 AND Salida IS NOT NULL "
+                    "AND Importe IS NOT NULL UNION ALL "
+                    "SELECT CONCAT(Id_entrada, '-R', Id_recobro) id, Fecha_pago Salida, "
+                    "'Recobro' Tarifa, 'Tiempo adicional' Concepto, Importe "
+                    "FROM Recobros WHERE CorteInc=0 ORDER BY Salida, id"
                 )
                 return cursor.fetchall()
 
@@ -389,14 +479,18 @@ class RepositorioMariaDB:
                 cursor.execute("SELECT MAX(FechaFin) ultima FROM Cortes")
                 ultima = cursor.fetchone()["ultima"]
                 cursor.execute(
-                    "SELECT id, Entrada, COALESCE(Importe, 0) Importe FROM Entradas "
+                    "SELECT CAST(id AS CHAR) referencia, Salida Fecha, "
+                    "COALESCE(Importe, 0) Importe FROM Entradas "
                     "WHERE CorteInc=0 AND Salida IS NOT NULL AND Importe IS NOT NULL "
-                    "ORDER BY id"
+                    "UNION ALL SELECT CONCAT(Id_entrada, '-R', Id_recobro), "
+                    "Fecha_pago, Importe FROM Recobros WHERE CorteInc=0"
                 )
                 cobrados = cursor.fetchall()
                 cursor.execute(
                     "SELECT COUNT(*) cantidad FROM Entradas "
-                    "WHERE Salida IS NULL AND COALESCE(Placas, '') <> 'Afuera'"
+                    "WHERE COALESCE(Placas, '') <> 'Afuera' AND "
+                    "(Salida IS NULL OR TIMESTAMPDIFF(SECOND, Salida, %s) > %s)",
+                    (fecha_fin, TOLERANCIA_SALIDA_MINUTOS * 60),
                 )
                 pendientes = int(cursor.fetchone()["cantidad"])
                 cursor.execute(
@@ -404,14 +498,14 @@ class RepositorioMariaDB:
                 )
                 pensionados = int(cursor.fetchone()["cantidad"])
         inicio = ultima or (
-            min((fila["Entrada"] for fila in cobrados), default=fecha_fin)
+            min((fila["Fecha"] for fila in cobrados), default=fecha_fin)
         )
         return ResumenCorte(
             inicio=inicio,
             fin=fecha_fin,
             boletos=len(cobrados),
             importe=float(sum(float(fila["Importe"]) for fila in cobrados)),
-            folios=tuple(int(fila["id"]) for fila in cobrados),
+            folios=tuple(str(fila["referencia"]) for fila in cobrados),
             pendientes_cobro=pendientes,
             pensionados_adentro=pensionados,
         )
@@ -425,52 +519,85 @@ class RepositorioMariaDB:
                     cursor.execute("SELECT MAX(FechaFin) ultima FROM Cortes FOR UPDATE")
                     ultima = cursor.fetchone()["ultima"]
                     cursor.execute(
-                        "SELECT id, Entrada, COALESCE(Importe, 0) Importe FROM Entradas "
+                        "SELECT id, Salida Fecha, COALESCE(Importe, 0) Importe "
+                        "FROM Entradas "
                         "WHERE CorteInc=0 AND Salida IS NOT NULL AND Importe IS NOT NULL "
                         "ORDER BY id FOR UPDATE"
                     )
-                    cobrados = cursor.fetchall()
-                    if not cobrados:
+                    cobros_iniciales = cursor.fetchall()
+                    cursor.execute(
+                        "SELECT Id_recobro, Id_entrada, Fecha_pago Fecha, Importe "
+                        "FROM Recobros WHERE CorteInc=0 ORDER BY Id_recobro FOR UPDATE"
+                    )
+                    recobros = cursor.fetchall()
+                    if not cobros_iniciales and not recobros:
                         raise ErrorSimulacion("No hay cobros pendientes para generar el corte.")
                     cursor.execute(
                         "SELECT COUNT(*) cantidad FROM Entradas "
-                        "WHERE Salida IS NULL AND COALESCE(Placas, '') <> 'Afuera'"
+                        "WHERE COALESCE(Placas, '') <> 'Afuera' AND "
+                        "(Salida IS NULL OR TIMESTAMPDIFF(SECOND, Salida, %s) > %s)",
+                        (fecha_fin, TOLERANCIA_SALIDA_MINUTOS * 60),
                     )
                     pendientes = int(cursor.fetchone()["cantidad"])
                     cursor.execute(
                         "SELECT COUNT(*) cantidad FROM Pensionados WHERE Estatus='Adentro'"
                     )
                     pensionados = int(cursor.fetchone()["cantidad"])
-                    inicio = ultima or min(fila["Entrada"] for fila in cobrados)
-                    folios = tuple(int(fila["id"]) for fila in cobrados)
-                    importe = float(sum(float(fila["Importe"]) for fila in cobrados))
+                    todos = [*cobros_iniciales, *recobros]
+                    inicio = ultima or min(fila["Fecha"] for fila in todos)
+                    referencias = tuple(
+                        [str(fila["id"]) for fila in cobros_iniciales]
+                        + [
+                            f"{fila['Id_entrada']}-R{fila['Id_recobro']}"
+                            for fila in recobros
+                        ]
+                    )
+                    importe = float(sum(float(fila["Importe"]) for fila in todos))
+                    ids_entrada = tuple(int(fila["id"]) for fila in cobros_iniciales)
+                    ids_recobro = tuple(int(fila["Id_recobro"]) for fila in recobros)
+                    folios_vehiculo = [*ids_entrada] + [
+                        int(fila["Id_entrada"]) for fila in recobros
+                    ]
                     cursor.execute(
                         "INSERT INTO Cortes "
                         "(FechaIni, FechaFin, Importe, NumBoletos, TipoDCorte, "
                         "Quedados, idInicial, NumBolQued, Pensionados_Quedados) "
                         "VALUES (%s, %s, %s, %s, 1, %s, %s, %s, %s)",
                         (
-                            inicio, fecha_fin, importe, len(folios), pendientes,
-                            max(folios), pendientes, pensionados,
+                            inicio, fecha_fin, importe, len(referencias), pendientes,
+                            max(folios_vehiculo), pendientes, pensionados,
                         ),
                     )
                     numero_corte = int(cursor.lastrowid)
-                    marcadores = ",".join(["%s"] * len(folios))
-                    cursor.execute(
-                        f"UPDATE Entradas SET CorteInc=%s WHERE CorteInc=0 "
-                        f"AND id IN ({marcadores})",
-                        (numero_corte, *folios),
-                    )
-                    if cursor.rowcount != len(folios):
-                        raise ErrorSimulacion(
-                            "Los cobros cambiaron mientras se generaba el corte. Intente nuevamente."
+                    if ids_entrada:
+                        marcadores = ",".join(["%s"] * len(ids_entrada))
+                        cursor.execute(
+                            f"UPDATE Entradas SET CorteInc=%s WHERE CorteInc=0 "
+                            f"AND id IN ({marcadores})",
+                            (numero_corte, *ids_entrada),
                         )
+                        if cursor.rowcount != len(ids_entrada):
+                            raise ErrorSimulacion(
+                                "Los cobros cambiaron mientras se generaba el corte."
+                            )
+                    if ids_recobro:
+                        marcadores = ",".join(["%s"] * len(ids_recobro))
+                        cursor.execute(
+                            f"UPDATE Recobros SET CorteInc=%s WHERE CorteInc=0 "
+                            f"AND Id_recobro IN ({marcadores})",
+                            (numero_corte, *ids_recobro),
+                        )
+                        if cursor.rowcount != len(ids_recobro):
+                            raise ErrorSimulacion(
+                                "Los recobros cambiaron mientras se generaba el corte."
+                            )
                 conexion.commit()
             except Exception:
                 conexion.rollback()
                 raise
         return numero_corte, ResumenCorte(
-            inicio, fecha_fin, len(folios), importe, folios, pendientes, pensionados
+            inicio, fecha_fin, len(referencias), importe, referencias,
+            pendientes, pensionados
         )
 
     def autorizar_salida(self, folio: int, fecha_qr: datetime, ahora: datetime) -> ResultadoSalida:
@@ -492,7 +619,10 @@ class RepositorioMariaDB:
                         return ResultadoSalida(folio, False, "Boleto ya utilizado, auto afuera")
                     restantes = tolerancia_restante(fila["Salida"], ahora)
                     if restantes is None:
-                        return ResultadoSalida(folio, False, "Tolerancia de 15 minutos vencida")
+                        return ResultadoSalida(
+                            folio, False,
+                            "Tolerancia de 15 minutos vencida; requiere recobro en TPV",
+                        )
                     cursor.execute(
                         "UPDATE Entradas SET Placas='Afuera' "
                         "WHERE id=%s AND COALESCE(Placas, '') <> 'Afuera'",
@@ -699,7 +829,7 @@ class SistemaSimulado:
             "CORTE DE CAJA - SIMULACIÓN\n"
             f"Corte: {numero}\nInicio: {resumen.inicio:%Y-%m-%d %H:%M:%S}\n"
             f"Fin: {resumen.fin:%Y-%m-%d %H:%M:%S}\n"
-            f"Boletos cobrados: {resumen.boletos}\n"
+            f"Cobros y recobros: {resumen.boletos}\n"
             f"Importe total: ${resumen.importe:.2f}\n"
             f"Folios: {', '.join(map(str, resumen.folios))}\n"
             f"Boletos pendientes de cobro: {resumen.pendientes_cobro}\n"

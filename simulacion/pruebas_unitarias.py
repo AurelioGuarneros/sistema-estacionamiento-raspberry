@@ -5,8 +5,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from nucleo import (
-    calcular_tarifa, cifrar_folio, construir_cotizacion, crear_codigo_salida,
-    descifrar_folio, ErrorSimulacion, leer_codigo_salida, normalizar_promocion,
+    calcular_tarifa, cifrar_folio, construir_cotizacion,
+    construir_cotizacion_recobro, crear_codigo_salida, descifrar_folio,
+    ErrorSimulacion, leer_codigo_salida, normalizar_promocion,
     normalizar_tarjeta, ResumenCorte, ResultadoSalida, SistemaSimulado,
     texto_permanencia, tolerancia_restante,
 )
@@ -20,28 +21,38 @@ class RepositorioMemoria:
         folio = len(self.registros) + 1
         self.registros[folio] = {
             "entrada": fecha, "placa": placa, "pago": None, "usado": False,
-            "importe": None, "tarifa": None, "corte": 0,
+            "importe": None, "tarifa": None, "corte": 0, "recobros": [],
         }
         return folio
 
     def cotizar(self, folio, promocion, fecha_consulta):
         fila = self.registros[folio]
         if fila["pago"] is not None:
-            raise ErrorSimulacion("Este boleto ya fue cobrado.")
+            return construir_cotizacion_recobro(
+                folio, fila["entrada"], fila["pago"], promocion, fecha_consulta
+            )
         return construir_cotizacion(
             folio, fila["entrada"], promocion, fecha_consulta
         )
 
     def cobrar(self, folio, promocion, fecha_pago):
         fila = self.registros[folio]
-        if fila["pago"] is not None:
-            raise ErrorSimulacion("Este boleto ya fue cobrado.")
-        cotizacion = construir_cotizacion(
-            folio, fila["entrada"], promocion, fecha_pago
+        es_recobro = fila["pago"] is not None
+        cotizacion = (
+            construir_cotizacion_recobro(
+                folio, fila["entrada"], fila["pago"], promocion, fecha_pago
+            )
+            if es_recobro else
+            construir_cotizacion(folio, fila["entrada"], promocion, fecha_pago)
         )
+        if es_recobro:
+            fila["recobros"].append({
+                "importe": cotizacion["importe_final"], "corte": 0,
+            })
         fila["pago"] = fecha_pago
-        fila["tarifa"] = cotizacion["tarifa"]
-        fila["importe"] = cotizacion["importe_final"]
+        if not es_recobro:
+            fila["tarifa"] = cotizacion["tarifa"]
+            fila["importe"] = cotizacion["importe_final"]
         return {
             "entrada": fila["entrada"],
             "pago": fecha_pago,
@@ -58,8 +69,11 @@ class RepositorioMemoria:
             return ResultadoSalida(folio, False, "Boleto no pagado")
         if fila["usado"]:
             return ResultadoSalida(folio, False, "Boleto ya utilizado")
+        restantes = tolerancia_restante(fila["pago"], ahora)
+        if restantes is None:
+            return ResultadoSalida(folio, False, "Tolerancia vencida; requiere recobro")
         fila["usado"] = True
-        return ResultadoSalida(folio, True, "Abre barrera simulada", 900)
+        return ResultadoSalida(folio, True, "Abre barrera simulada", restantes)
 
     def resumen_corte(self, fecha_fin=None):
         fin = fecha_fin or datetime.now().replace(microsecond=0)
@@ -67,11 +81,21 @@ class RepositorioMemoria:
             (folio, fila) for folio, fila in self.registros.items()
             if fila["pago"] is not None and fila["corte"] == 0
         ]
+        recobros = [
+            (folio, indice, recobro)
+            for folio, fila in self.registros.items()
+            for indice, recobro in enumerate(fila["recobros"], start=1)
+            if recobro["corte"] == 0
+        ]
         inicio = min((fila["entrada"] for _, fila in filas), default=fin)
         return ResumenCorte(
-            inicio, fin, len(filas),
-            sum(fila["importe"] for _, fila in filas),
-            tuple(folio for folio, _ in filas),
+            inicio, fin, len(filas) + len(recobros),
+            sum(fila["importe"] for _, fila in filas)
+            + sum(recobro["importe"] for _, _, recobro in recobros),
+            tuple(
+                [str(folio) for folio, _ in filas]
+                + [f"{folio}-R{indice}" for folio, indice, _ in recobros]
+            ),
             sum(fila["pago"] is None for fila in self.registros.values()), 0,
         )
 
@@ -83,7 +107,11 @@ class RepositorioMemoria:
             (fila["corte"] for fila in self.registros.values()), default=0
         )
         for folio in resumen.folios:
-            self.registros[folio]["corte"] = numero
+            if "-R" in folio:
+                entrada, indice = folio.split("-R")
+                self.registros[int(entrada)]["recobros"][int(indice) - 1]["corte"] = numero
+            else:
+                self.registros[int(folio)]["corte"] = numero
         return numero, resumen
 
 
@@ -116,6 +144,15 @@ class PruebasNucleo(unittest.TestCase):
         self.assertEqual(promocion["importe_normal"], 20)
         self.assertEqual(promocion["descuento"], 15)
         self.assertEqual(promocion["importe_final"], 5)
+
+    def test_recobro_cobra_solo_tiempo_despues_de_tolerancia(self):
+        pago = datetime(2026, 8, 26, 10, 0, 0)
+        recobro = construir_cotizacion_recobro(
+            1, pago - timedelta(hours=2), pago, "",
+            pago + timedelta(minutes=16),
+        )
+        self.assertEqual(recobro["minutos_excedidos"], 1)
+        self.assertEqual(recobro["importe_final"], 10)
 
     def test_tarjeta_vacia_usa_la_seleccion(self):
         self.assertEqual(normalizar_tarjeta("", "9900002"), 9900002)
@@ -168,13 +205,33 @@ class PruebasNucleo(unittest.TestCase):
                 sistema.salir(cobro_primero.codigo_salida, ahora).autorizado
             )
 
-    def test_no_permite_cobrar_dos_veces(self):
+    def test_no_permite_recobrar_dentro_de_tolerancia(self):
         with TemporaryDirectory() as temporal:
             sistema = SistemaSimulado(Path(temporal), RepositorioMemoria())
             entrada = sistema.expedir("AUTO-1", datetime.now().replace(microsecond=0))
             sistema.cobrar(entrada.codigo)
-            with self.assertRaisesRegex(ErrorSimulacion, "ya fue cobrado"):
+            with self.assertRaisesRegex(ErrorSimulacion, "todavía tiene"):
                 sistema.cobrar(entrada.codigo)
+
+    def test_boleto_vencido_se_recobra_sin_duplicar_corte_anterior(self):
+        with TemporaryDirectory() as temporal:
+            repo = RepositorioMemoria()
+            sistema = SistemaSimulado(Path(temporal), repo)
+            pago = datetime(2026, 8, 26, 10, 0, 0)
+            entrada = sistema.expedir("VENCIDO", pago - timedelta(minutes=95))
+            cobro_inicial = sistema.cobrar(entrada.codigo, "", pago)
+            primer_corte = sistema.generar_corte(pago)
+            self.assertEqual(primer_corte.resumen.importe, 20)
+
+            regreso = pago + timedelta(minutes=16)
+            salida_vencida = sistema.salir(cobro_inicial.codigo_salida, regreso)
+            self.assertFalse(salida_vencida.autorizado)
+            self.assertIn("recobro", salida_vencida.mensaje)
+            recobro = sistema.cobrar(entrada.codigo, "", regreso)
+            self.assertEqual(recobro.importe, 10)
+            segundo_corte = sistema.generar_corte(regreso)
+            self.assertEqual(segundo_corte.resumen.importe, 10)
+            self.assertTrue(sistema.salir(recobro.codigo_salida, regreso).autorizado)
 
     def test_corte_incluye_cobrados_una_sola_vez(self):
         with TemporaryDirectory() as temporal:

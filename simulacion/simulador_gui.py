@@ -7,14 +7,14 @@ from tkinter import messagebox, ttk
 
 from nucleo import (
     ErrorSimulacion, normalizar_tarjeta, PROMOCION_BA, SistemaSimulado,
-    ruta_resultados,
+    ruta_resultados, VERSION_SIMULADOR,
 )
 
 
 class SimuladorGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Laboratorio del estacionamiento")
+        self.root.title(f"Laboratorio del estacionamiento — {VERSION_SIMULADOR}")
         self.root.geometry("1100x760")
         self.sistema = SistemaSimulado(ruta_resultados())
 
@@ -43,7 +43,8 @@ class SimuladorGUI:
         self.codigos_salida = {}
 
         ttk.Label(
-            root, text="SIMULACIÓN SEGURA — SIN GPIO NI IMPRESORAS",
+            root,
+            text=f"SIMULACIÓN SEGURA — SIN GPIO NI IMPRESORAS — {VERSION_SIMULADOR}",
             font=("Arial", 15, "bold"),
         ).pack(pady=8)
         self.tabs = ttk.Notebook(root)
@@ -134,10 +135,12 @@ class SimuladorGUI:
             botones, text="Cargar seleccionado", command=self.cargar_cobro
         ).pack(side="right", padx=8)
         self.tabla_cobro = ttk.Treeview(
-            f, columns=("folio", "entrada", "placa"), show="headings", height=6
+            f, columns=("folio", "tipo", "entrada", "placa"),
+            show="headings", height=6,
         )
         for columna, titulo, ancho in (
-            ("folio", "Folio", 90), ("entrada", "Entrada", 190),
+            ("folio", "Folio", 80), ("tipo", "Operación", 120),
+            ("entrada", "Entrada", 190),
             ("placa", "Placa", 180),
         ):
             self.tabla_cobro.heading(columna, text=titulo)
@@ -228,7 +231,7 @@ class SimuladorGUI:
         self.tabs.add(f, text="Corte")
         self.campo(f, "Inicio del periodo:", self.corte_inicio, 0, solo_lectura=True)
         self.campo(f, "Fin de consulta:", self.corte_fin, 1, solo_lectura=True)
-        self.campo(f, "Boletos cobrados:", self.corte_boletos, 2, solo_lectura=True)
+        self.campo(f, "Cobros y recobros:", self.corte_boletos, 2, solo_lectura=True)
         self.campo(f, "Importe total:", self.corte_importe, 3, solo_lectura=True)
         self.campo(f, "Boletos pendientes de cobro:", self.corte_pendientes, 4, solo_lectura=True)
         self.campo(f, "Pensionados adentro:", self.corte_pensionados, 5, solo_lectura=True)
@@ -242,11 +245,12 @@ class SimuladorGUI:
             row=7, column=0, columnspan=2, sticky="w"
         )
         self.tabla_corte = ttk.Treeview(
-            f, columns=("folio", "pago", "tarifa", "importe"),
+            f, columns=("folio", "concepto", "pago", "tarifa", "importe"),
             show="headings", height=10,
         )
         for columna, titulo, ancho in (
-            ("folio", "Folio", 80), ("pago", "Hora de pago", 190),
+            ("folio", "Folio", 90), ("concepto", "Concepto", 130),
+            ("pago", "Hora de pago", 190),
             ("tarifa", "Tarifa", 210), ("importe", "Importe", 100),
         ):
             self.tabla_corte.heading(columna, text=titulo)
@@ -274,7 +278,11 @@ class SimuladorGUI:
             self.codigos_cobro[str(folio)] = fila["codigo_entrada"]
             self.tabla_cobro.insert(
                 "", "end", iid=f"cobro-{folio}",
-                values=(folio, fila["Entrada"].strftime("%Y-%m-%d %H:%M:%S"), fila["Placas"]),
+                values=(
+                    folio, fila["Tipo"],
+                    fila["Entrada"].strftime("%Y-%m-%d %H:%M:%S"),
+                    fila["Placas"],
+                ),
             )
 
         self.codigos_salida.clear()
@@ -479,7 +487,8 @@ class SimuladorGUI:
             self.tabla_corte.insert(
                 "", "end",
                 values=(
-                    int(fila["id"]), fila["Salida"].strftime("%Y-%m-%d %H:%M:%S"),
+                    fila["id"], fila["Concepto"],
+                    fila["Salida"].strftime("%Y-%m-%d %H:%M:%S"),
                     fila["Tarifa"], f"${float(fila['Importe']):.2f}",
                 ),
             )

@@ -82,6 +82,26 @@ CREATE TABLE `Entradas` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `Recobros`
+--
+
+DROP TABLE IF EXISTS `Recobros`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `Recobros` (
+  `Id_recobro` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `Id_entrada` bigint(20) unsigned NOT NULL,
+  `Fecha_pago` datetime NOT NULL,
+  `Minutos_excedidos` int(11) NOT NULL,
+  `Importe` float NOT NULL,
+  `CorteInc` int(11) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`Id_recobro`),
+  KEY `Id_entrada` (`Id_entrada`),
+  CONSTRAINT `Recobros_ibfk_1` FOREIGN KEY (`Id_entrada`) REFERENCES `Entradas` (`id`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `MovimientosPens`
 --
 

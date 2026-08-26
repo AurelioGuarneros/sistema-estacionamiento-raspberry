@@ -94,6 +94,7 @@ instalar_simulacion() {
   verificar_python "$destino/aplicacion" "$destino/venv/bin/python"
   verificar_python "$destino/simulacion" "$destino/venv/bin/python"
   printf '\nInstalación de simulación terminada en:\n  %s\n' "$destino"
+  printf 'Versión instalada: 0.4-recobros\n'
   printf 'Prueba un punto con:\n  %s/simulacion/simular_punto.sh entrada\n' "$destino"
 }
 

@@ -34,3 +34,8 @@ Los respaldos que contienen boletos, cobros, usuarios o pensionados no deben alm
 ## Advertencia
 
 `schema.sql` contiene instrucciones `DROP TABLE IF EXISTS`. El instalador se detiene si detecta tablas existentes para evitar borrar una base en operación. Para una instalación nueva, la base debe estar vacía.
+
+La migración `migrations/002_recobros_tolerancia.sql` agrega el registro separado
+de cobros adicionales cuando un boleto excede los 15 minutos de tolerancia. El
+simulador la aplica automáticamente y exclusivamente sobre una base cuyo nombre
+termine en `_prueba`.

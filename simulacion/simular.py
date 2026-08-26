@@ -32,6 +32,7 @@ def construir_parser():
     preparar.add_argument("--rfid", type=int, default=9900001)
     sub.add_parser("demo-rfid", help="Probar varios pensionados en distinto orden")
     sub.add_parser("demo-corte", help="Cobrar boletos y generar un corte de prueba")
+    sub.add_parser("demo-recobro", help="Probar tolerancia vencida y recobro")
     return parser
 
 
@@ -153,6 +154,30 @@ def main():
         print(f"   Comprobante: {corte.comprobante}")
         print(f"   Correo simulado: {corte.correo_simulado}")
         print("RESULTADO: CORTE GENERADO CORRECTAMENTE")
+    elif args.punto == "demo-recobro":
+        pago = datetime.now().replace(microsecond=0)
+        print("1. Se expide y paga un boleto con estancia de 95 minutos")
+        entrada = sistema.expedir("RECOBRO", pago - timedelta(minutes=95))
+        cobro = sistema.cobrar(entrada.codigo, "", pago)
+        regreso = pago + timedelta(minutes=16)
+        print("2. Se intenta salir 16 minutos después del pago")
+        vencida = sistema.salir(cobro.codigo_salida, regreso)
+        print(f"   {vencida.mensaje}")
+        if vencida.autorizado:
+            raise ErrorSimulacion("Una tolerancia vencida abrió la barrera.")
+        print("3. TPV calcula y realiza el recobro")
+        cotizacion = sistema.cotizar(entrada.codigo, "", regreso)
+        print(
+            f"   Tiempo excedido: {cotizacion.permanencia}; "
+            f"importe ${cotizacion.importe_final:.2f}"
+        )
+        recobro = sistema.cobrar(entrada.codigo, "", regreso)
+        print("4. La nueva autorización permite salir")
+        salida = sistema.salir(recobro.codigo_salida, regreso)
+        print(f"   {salida.mensaje}")
+        if not salida.autorizado:
+            raise ErrorSimulacion("El boleto recobrado no abrió la barrera.")
+        print("RESULTADO: RECOBRO Y NUEVA TOLERANCIA CORRECTOS")
 
 
 if __name__ == "__main__":

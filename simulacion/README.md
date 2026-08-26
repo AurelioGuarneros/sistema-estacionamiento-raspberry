@@ -28,6 +28,12 @@ La ventana permite:
 5. preparar y probar varias tarjetas RFID de pensionados en cualquier orden;
 6. consultar y generar un corte de caja.
 
+Si transcurren más de 15 minutos después de pagar, Salida rechaza el boleto y
+lo identifica como pendiente de `Recobro` en TPV. El recobro considera sólo el
+tiempo posterior a la tolerancia, utiliza tarifa normal, no vuelve a aplicar la
+promoción y concede una nueva tolerancia de 15 minutos. Los recobros se guardan
+por separado para no duplicar el pago inicial en los cortes.
+
 Al leer o seleccionar un boleto, TPV muestra la permanencia, el importe normal,
 el descuento y el importe final antes de cobrar. Aplicar o quitar la promoción
 recalcula estos valores para poder verificar la tarifa.
@@ -53,6 +59,7 @@ del boleto de laboratorio, para probar tarifas sin tener que esperar.
 ~/estacionamiento-prueba/simulacion/simular_punto.sh demo-multiple
 ~/estacionamiento-prueba/simulacion/simular_punto.sh demo-rfid
 ~/estacionamiento-prueba/simulacion/simular_punto.sh demo-corte
+~/estacionamiento-prueba/simulacion/simular_punto.sh demo-recobro
 ```
 
 La primera prueba hace Entrada → TPV → Salida, aplica la promoción y verifica
@@ -60,7 +67,8 @@ el rechazo del segundo uso. `demo-multiple` expide tres boletos, cobra y da
 salida en órdenes distintos, dejando uno pendiente. `demo-rfid` prueba tres
 pensionados que entran y salen en distinto orden. `demo-corte` comprueba la
 cotización antes y después de la promoción y genera un corte real en la base de
-laboratorio.
+laboratorio. `demo-recobro` simula un boleto que excede la tolerancia, realiza
+el cobro adicional y verifica la nueva autorización de salida.
 
 ## Prueba manual en terminal
 
