@@ -9,6 +9,7 @@ Punto de partida confiable del sistema de estacionamiento con tres estaciones:
 La base de datos central es MariaDB y se ejecuta en la Raspberry TPV.
 
 La estructura versionada, sin datos operativos, se encuentra en `database/`.
+La prueba completa sin hardware se encuentra en `simulacion/`.
 
 ## Seguridad
 
@@ -34,7 +35,7 @@ TPV/
 
 ## Próximas etapas
 
-1. Probar `install/instalar.sh` en una laptop con `--modo-simulacion`.
+1. Validar el flujo de laboratorio Entrada → TPV → Salida y RFID.
 2. Instalar y validar los servicios en una Raspberry de prueba.
 3. Empaquetar ejecutables sin distribuir directamente el codigo fuente.
 4. Incorporar Mosquitto y Django para operacion, reportes y consulta remota.

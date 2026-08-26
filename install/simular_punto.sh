@@ -1,23 +1,44 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PUNTO="${1:-}"
-case "$PUNTO" in
-  entrada)
-    printf '[SIMULACIÓN] Entrada instalada.\n'
-    printf '[SIMULACIÓN] Botón y sensor: sin GPIO físico.\n'
-    printf '[SIMULACIÓN] Impresión: se generaría un boleto de prueba.\n'
-    printf '[SIMULACIÓN] Barrera de entrada: pulso de 3 segundos.\n'
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+BASE="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+CONFIG="${BASE}/config/config.env"
+PYTHON="${BASE}/venv/bin/python"
+
+if [[ ! -x "$PYTHON" ]]; then
+  printf 'No existe el entorno Python: %s\nEjecute nuevamente el instalador.\n' "$PYTHON" >&2
+  exit 1
+fi
+if [[ ! -f "$CONFIG" ]]; then
+  printf 'No existe la configuración: %s\n' "$CONFIG" >&2
+  exit 1
+fi
+
+export ESTACIONAMIENTO_CONFIG="$CONFIG"
+export ESTACIONAMIENTO_SIM_ROOT="$BASE"
+
+case "${1:-}" in
+  gui)
+    exec "$PYTHON" "$SCRIPT_DIR/simulador_gui.py"
     ;;
-  tpv)
-    printf '[SIMULACIÓN] TPV instalada.\n'
-    printf '[SIMULACIÓN] MariaDB y correo requieren configurar config/config.env.\n'
-    printf '[SIMULACIÓN] Impresión de comprobante: sin impresora física.\n'
+  entrada|tpv|salida|demo|preparar-rfid|demo-rfid)
+    exec "$PYTHON" "$SCRIPT_DIR/simular.py" "$@"
     ;;
-  salida)
-    printf '[SIMULACIÓN] Salida instalada.\n'
-    printf '[SIMULACIÓN] Lector QR/RFID: sin dispositivo físico.\n'
-    printf '[SIMULACIÓN] Barrera de salida: pulso de 3 segundos.\n'
+  pruebas)
+    exec "$PYTHON" "$SCRIPT_DIR/pruebas_unitarias.py"
     ;;
-  *) printf 'Uso: %s entrada|tpv|salida\n' "$0" >&2; exit 2 ;;
+  *)
+    printf '%s\n' \
+      "Uso:" \
+      "  $0 gui" \
+      "  $0 demo" \
+      "  $0 demo-rfid" \
+      "  $0 preparar-rfid [--rfid TARJETA]" \
+      "  $0 entrada [--placa PLACA] [--hace-minutos N] [--rfid TARJETA]" \
+      "  $0 tpv CODIGO_QR [--promocion 'BA BODEGA AURRERA 114254']" \
+      "  $0 salida CODIGO_QR [--rfid TARJETA]" \
+      "  $0 pruebas" >&2
+    exit 2
+    ;;
 esac

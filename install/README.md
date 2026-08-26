@@ -17,13 +17,25 @@ Los puntos válidos en Raspberry son `entrada`, `tpv` y `salida`.
 - crea un entorno Python aislado en `venv/` e instala `requirements.txt`;
 - verifica la sintaxis de todos los archivos Python;
 - no instala servicios, no activa GPIO y no busca impresoras;
-- genera comandos de simulación en `simulacion/`.
+- instala automáticamente `python3-venv` y `python3-tk` en Debian/Ubuntu;
+- genera boletos, comprobantes y códigos QR de laboratorio;
+- permite probar Entrada → TPV → Salida y pensionados RFID.
 
-En Ubuntu se necesita el paquete `python3-venv`:
+Para abrir la simulación gráfica:
 
 ```bash
-sudo apt install python3-venv
+~/estacionamiento-prueba/simulacion/simular_punto.sh gui
 ```
+
+Para ejecutar la comprobación automática del boleto y su uso único:
+
+```bash
+~/estacionamiento-prueba/simulacion/simular_punto.sh demo
+```
+
+La simulación debe apuntar únicamente a una base de laboratorio, por ejemplo
+`Parqueadero1_prueba`. La creación de pensionados de demostración se bloquea
+si el nombre de la base no termina en `_prueba`.
 
 ## Modo Raspberry
 

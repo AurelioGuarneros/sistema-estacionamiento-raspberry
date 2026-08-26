@@ -10,6 +10,11 @@ ORIGEN="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 
 instalar_dependencias_sistema() {
   local comando=(apt-get install -y python3-venv python3-tk)
+  if command -v python3 >/dev/null 2>&1 \
+      && python3 -m venv --help >/dev/null 2>&1 \
+      && python3 -c 'import tkinter' >/dev/null 2>&1; then
+    return
+  fi
   if ! command -v apt-get >/dev/null 2>&1; then
     printf 'Este instalador requiere una distribución basada en Debian/Ubuntu.\n' >&2
     exit 1
@@ -60,7 +65,7 @@ verificar_python() {
   while IFS= read -r -d '' archivo; do
     "$interprete" -m py_compile "$archivo"
     encontrados=$((encontrados + 1))
-  done < <(find "$raiz/Entrada" "$raiz/TPV" "$raiz/Salida" -type f -name '*.py' -print0)
+  done < <(find "$raiz" -type f -name '*.py' -print0)
   printf 'Sintaxis verificada: %s archivos Python.\n' "$encontrados"
 }
 
@@ -76,8 +81,9 @@ instalar_simulacion() {
     cp "$ORIGEN/.env.example" "$destino/config/config.env"
     chmod 600 "$destino/config/config.env"
   fi
+  cp -a "$ORIGEN/simulacion/." "$destino/simulacion/"
   cp "$SCRIPT_DIR/simular_punto.sh" "$destino/simulacion/"
-  chmod +x "$destino/simulacion/simular_punto.sh"
+  chmod +x "$destino/simulacion/"*.py "$destino/simulacion/"*.sh
 
   instalar_dependencias_sistema
   if [[ ! -x "$destino/venv/bin/python" ]]; then
@@ -86,6 +92,7 @@ instalar_simulacion() {
   "$destino/venv/bin/python" -m pip install --upgrade pip
   "$destino/venv/bin/python" -m pip install -r "$destino/aplicacion/requirements.txt"
   verificar_python "$destino/aplicacion" "$destino/venv/bin/python"
+  verificar_python "$destino/simulacion" "$destino/venv/bin/python"
   printf '\nInstalación de simulación terminada en:\n  %s\n' "$destino"
   printf 'Prueba un punto con:\n  %s/simulacion/simular_punto.sh entrada\n' "$destino"
 }
