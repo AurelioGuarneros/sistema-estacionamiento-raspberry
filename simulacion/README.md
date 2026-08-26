@@ -27,6 +27,12 @@ La ventana permite:
 4. comprobar que una segunda lectura no abre nuevamente;
 5. preparar y probar una tarjeta RFID de pensionado.
 
+Las pestañas de TPV y Salida muestran todos los registros pendientes guardados
+en MariaDB. Puede elegir cualquier fila con doble clic y procesar los boletos
+en un orden diferente al de expedición. Al terminar una operación, el campo de
+lectura se limpia y queda listo para el siguiente vehículo. La pestaña RFID
+también lista las tarjetas y su estado actual.
+
 El campo «Minutos de estancia simulada» cambia únicamente la hora de entrada
 del boleto de laboratorio, para probar tarifas sin tener que esperar.
 
@@ -34,11 +40,14 @@ del boleto de laboratorio, para probar tarifas sin tener que esperar.
 
 ```bash
 ~/estacionamiento-prueba/simulacion/simular_punto.sh demo
+~/estacionamiento-prueba/simulacion/simular_punto.sh demo-multiple
 ~/estacionamiento-prueba/simulacion/simular_punto.sh demo-rfid
 ```
 
 La primera prueba hace Entrada → TPV → Salida, aplica la promoción y verifica
-el rechazo del segundo uso. La segunda prueba hace lo mismo con RFID.
+el rechazo del segundo uso. `demo-multiple` expide tres boletos, cobra y da
+salida en órdenes distintos, dejando uno pendiente. La última prueba hace lo
+mismo con RFID.
 
 ## Prueba manual en terminal
 

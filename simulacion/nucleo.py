@@ -202,6 +202,54 @@ class RepositorioMariaDB:
             conexion.commit()
         return int(folio)
 
+    def listar_pendientes_cobro(self) -> list[dict]:
+        """Boletos expedidos que todavía pueden cobrarse, en cualquier orden."""
+        with self.abrir() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, Entrada, COALESCE(Placas, '') Placas "
+                    "FROM Entradas WHERE Salida IS NULL "
+                    "AND COALESCE(Placas, '') <> 'Afuera' ORDER BY id"
+                )
+                filas = cursor.fetchall()
+        for fila in filas:
+            # La aplicación vigente obtiene el folio de la parte cifrada y no
+            # conserva los cinco dígitos de seguridad en la base de datos.
+            fila["codigo_entrada"] = cifrar_folio(int(fila["id"]), 11111)
+        return filas
+
+    def listar_pendientes_salida(self) -> list[dict]:
+        """Boletos pagados cuyo QR todavía no ha sido utilizado en Salida."""
+        with self.abrir() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "SELECT id, Entrada, Salida, COALESCE(Placas, '') Placas "
+                    "FROM Entradas WHERE Salida IS NOT NULL "
+                    "AND COALESCE(Placas, '') <> 'Afuera' ORDER BY Salida, id"
+                )
+                filas = cursor.fetchall()
+        ahora = datetime.now().replace(microsecond=0)
+        for fila in filas:
+            fila["codigo_salida"] = crear_codigo_salida(fila["Entrada"], int(fila["id"]))
+            restantes = tolerancia_restante(fila["Salida"], ahora)
+            fila["estado_tolerancia"] = (
+                "VENCIDA" if restantes is None
+                else f"{restantes // 60:02d}:{restantes % 60:02d}"
+            )
+        return filas
+
+    def listar_pensionados(self) -> list[dict]:
+        """Tarjetas disponibles para elegirlas sin depender de la última leída."""
+        with self.abrir() as conexion:
+            with conexion.cursor() as cursor:
+                cursor.execute(
+                    "SELECT Num_tarjeta, COALESCE(Nom_cliente, '') Nom_cliente, "
+                    "COALESCE(Estatus, '') Estatus, Fecha_vigencia, "
+                    "COALESCE(Vigencia, '') Vigencia FROM Pensionados "
+                    "ORDER BY Num_tarjeta"
+                )
+                return cursor.fetchall()
+
     def cobrar(self, folio: int, promocion: str, fecha_pago: datetime) -> dict:
         with self.abrir() as conexion:
             try:
@@ -287,7 +335,7 @@ class RepositorioMariaDB:
                 with conexion.cursor() as cursor:
                     cursor.execute(
                         "SELECT Id_cliente, Fecha_vigencia, Estatus, Vigencia, Tolerancia "
-                        "WHERE Num_tarjeta=%s FOR UPDATE",
+                        "FROM Pensionados WHERE Num_tarjeta=%s FOR UPDATE",
                         (int(tarjeta),),
                     )
                     fila = cursor.fetchone()
@@ -324,7 +372,7 @@ class RepositorioMariaDB:
                 with conexion.cursor() as cursor:
                     cursor.execute(
                         "SELECT Id_cliente, Estatus, Fecha_vigencia, Vigencia, Tolerancia "
-                        "WHERE Num_tarjeta=%s FOR UPDATE",
+                        "FROM Pensionados WHERE Num_tarjeta=%s FOR UPDATE",
                         (int(tarjeta),),
                     )
                     pensionado = cursor.fetchone()

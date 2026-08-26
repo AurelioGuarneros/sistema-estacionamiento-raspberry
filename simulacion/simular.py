@@ -27,6 +27,7 @@ def construir_parser():
     salida.add_argument("--rfid", type=int)
 
     sub.add_parser("demo", help="Ejecutar Entrada → TPV → Salida y reuso")
+    sub.add_parser("demo-multiple", help="Procesar varios boletos en distinto orden")
     preparar = sub.add_parser("preparar-rfid", help="Crear pensionado de laboratorio")
     preparar.add_argument("--rfid", type=int, default=9900001)
     sub.add_parser("demo-rfid", help="Probar entrada, salida y segundo uso RFID")
@@ -84,6 +85,32 @@ def main():
         if repetida.autorizado:
             raise ErrorSimulacion("La segunda lectura no debió abrir la barrera.")
         print("RESULTADO: FLUJO COMPLETO CORRECTO")
+    elif args.punto == "demo-multiple":
+        ahora = datetime.now().replace(microsecond=0)
+        print("1. Se expiden tres boletos independientes")
+        entradas = [
+            sistema.expedir("ORDEN-1", ahora - timedelta(minutes=40)),
+            sistema.expedir("ORDEN-2", ahora - timedelta(minutes=95)),
+            sistema.expedir("ORDEN-3", ahora - timedelta(minutes=10)),
+        ]
+        print("   Folios:", ", ".join(str(item.folio) for item in entradas))
+        print("2. Se cobran fuera de orden: segundo y después primero")
+        cobro_segundo = sistema.cobrar(entradas[1].codigo, fecha=ahora)
+        cobro_primero = sistema.cobrar(entradas[0].codigo, fecha=ahora)
+        print(f"   Cobrados: {cobro_segundo.folio}, {cobro_primero.folio}")
+        print(f"   El folio {entradas[2].folio} permanece pendiente de cobro")
+        print("3. Salen en otro orden: primero y después segundo")
+        salida_primero = sistema.salir(cobro_primero.codigo_salida, ahora)
+        salida_segundo = sistema.salir(cobro_segundo.codigo_salida, ahora)
+        print(f"   Folio {cobro_primero.folio}: {salida_primero.mensaje}")
+        print(f"   Folio {cobro_segundo.folio}: {salida_segundo.mensaje}")
+        if not salida_primero.autorizado or not salida_segundo.autorizado:
+            raise ErrorSimulacion("Un boleto válido no abrió la barrera.")
+        repetido = sistema.salir(cobro_primero.codigo_salida, ahora)
+        if repetido.autorizado:
+            raise ErrorSimulacion("Un boleto utilizado abrió dos veces.")
+        print("4. Reuso rechazado correctamente:", repetido.mensaje)
+        print("RESULTADO: VARIOS BOLETOS Y ORDEN DISTINTO CORRECTOS")
     elif args.punto == "preparar-rfid":
         print(sistema.db.preparar_pensionado_prueba(args.rfid))
     elif args.punto == "demo-rfid":
