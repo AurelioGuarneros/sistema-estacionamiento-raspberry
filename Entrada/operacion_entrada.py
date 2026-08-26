@@ -14,7 +14,7 @@ class Operacion:
     def abrir(self):
         conexion=pymysql.connect(host=self.host,
                                  user=self.user,
-                                 passwd=self.password,
+                                 password=self.password,
                                  database=self.database,
                                  port=3306,
                                  connect_timeout=5)

@@ -8,6 +8,21 @@ USUARIO_SERVICIO="${SUDO_USER:-${USER:-pi}}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ORIGEN="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 
+instalar_dependencias_sistema() {
+  local comando=(apt-get install -y python3-venv python3-tk)
+  if ! command -v apt-get >/dev/null 2>&1; then
+    printf 'Este instalador requiere una distribución basada en Debian/Ubuntu.\n' >&2
+    exit 1
+  fi
+  if [[ "${EUID}" -eq 0 ]]; then
+    apt-get update
+    "${comando[@]}"
+  else
+    sudo apt-get update
+    sudo "${comando[@]}"
+  fi
+}
+
 mostrar_uso() {
   printf '%s\n' \
     "Uso:" \
@@ -64,12 +79,7 @@ instalar_simulacion() {
   cp "$SCRIPT_DIR/simular_punto.sh" "$destino/simulacion/"
   chmod +x "$destino/simulacion/simular_punto.sh"
 
-  if ! python3 -m venv --help >/dev/null 2>&1; then
-    printf '%s\n' \
-      'Falta el módulo venv de Python.' \
-      'En Ubuntu instálelo con: sudo apt install python3-venv' >&2
-    exit 1
-  fi
+  instalar_dependencias_sistema
   if [[ ! -x "$destino/venv/bin/python" ]]; then
     python3 -m venv "$destino/venv"
   fi
@@ -87,6 +97,8 @@ instalar_raspberry() {
   fi
   case "$PUNTO" in entrada|tpv|salida) ;; *) printf 'Indique --punto entrada, tpv o salida.\n' >&2; exit 2 ;; esac
   id "$USUARIO_SERVICIO" >/dev/null 2>&1 || { printf 'No existe el usuario %s.\n' "$USUARIO_SERVICIO" >&2; exit 2; }
+
+  instalar_dependencias_sistema
 
   getent group estacionamiento >/dev/null || groupadd --system estacionamiento
   usermod -a -G estacionamiento,gpio,lp,dialout "$USUARIO_SERVICIO"
