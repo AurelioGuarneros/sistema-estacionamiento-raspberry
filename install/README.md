@@ -14,9 +14,16 @@ Los puntos válidos en Raspberry son `entrada`, `tpv` y `salida`.
 
 - Copia el sistema a una carpeta independiente.
 - crea `config/config.env` a partir de `.env.example`;
+- crea un entorno Python aislado en `venv/` e instala `requirements.txt`;
 - verifica la sintaxis de todos los archivos Python;
 - no instala servicios, no activa GPIO y no busca impresoras;
 - genera comandos de simulación en `simulacion/`.
+
+En Ubuntu se necesita el paquete `python3-venv`:
+
+```bash
+sudo apt install python3-venv
+```
 
 ## Modo Raspberry
 

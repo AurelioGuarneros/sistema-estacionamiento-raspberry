@@ -40,9 +40,10 @@ copiar_proyecto() {
 
 verificar_python() {
   local raiz="$1"
+  local interprete="${2:-python3}"
   local encontrados=0
   while IFS= read -r -d '' archivo; do
-    python3 -m py_compile "$archivo"
+    "$interprete" -m py_compile "$archivo"
     encontrados=$((encontrados + 1))
   done < <(find "$raiz/Entrada" "$raiz/TPV" "$raiz/Salida" -type f -name '*.py' -print0)
   printf 'Sintaxis verificada: %s archivos Python.\n' "$encontrados"
@@ -62,7 +63,19 @@ instalar_simulacion() {
   fi
   cp "$SCRIPT_DIR/simular_punto.sh" "$destino/simulacion/"
   chmod +x "$destino/simulacion/simular_punto.sh"
-  verificar_python "$destino/aplicacion"
+
+  if ! python3 -m venv --help >/dev/null 2>&1; then
+    printf '%s\n' \
+      'Falta el módulo venv de Python.' \
+      'En Ubuntu instálelo con: sudo apt install python3-venv' >&2
+    exit 1
+  fi
+  if [[ ! -x "$destino/venv/bin/python" ]]; then
+    python3 -m venv "$destino/venv"
+  fi
+  "$destino/venv/bin/python" -m pip install --upgrade pip
+  "$destino/venv/bin/python" -m pip install -r "$destino/aplicacion/requirements.txt"
+  verificar_python "$destino/aplicacion" "$destino/venv/bin/python"
   printf '\nInstalación de simulación terminada en:\n  %s\n' "$destino"
   printf 'Prueba un punto con:\n  %s/simulacion/simular_punto.sh entrada\n' "$destino"
 }
