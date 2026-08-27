@@ -20,6 +20,17 @@ El instalador mostrará un menú para elegir Entrada, TPV o Salida, presentará
 un resumen y solicitará confirmación antes de realizar cambios. El parámetro
 `--punto` se conserva para instalaciones automatizadas.
 
+Antes de instalar, el asistente comprueba y muestra:
+
+- modelo de Raspberry Pi y arquitectura ARM;
+- versión de Raspberry Pi OS y Python;
+- interfaz de red activa;
+- uso de NetworkManager (Trixie) o `dhcpcd` (sistemas anteriores);
+- nombre de la conexión de NetworkManager cuando esté disponible.
+
+Si el equipo, Python o la red no son compatibles, se detiene antes de instalar
+paquetes o escribir configuración.
+
 ## Modo simulación
 
 - Copia el sistema a una carpeta independiente.

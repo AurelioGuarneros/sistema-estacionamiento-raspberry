@@ -6,6 +6,13 @@ PUNTO=""
 DESTINO=""
 USUARIO_SERVICIO="${SUDO_USER:-${USER:-pi}}"
 ASUMIR_SI=0
+MODELO_EQUIPO=""
+ARQUITECTURA=""
+SISTEMA_OPERATIVO=""
+VERSION_PYTHON=""
+GESTOR_RED=""
+INTERFAZ_RED=""
+CONEXION_RED=""
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ORIGEN="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 
@@ -52,9 +59,74 @@ seleccionar_punto_interactivo() {
   done
 }
 
+detectar_entorno_raspberry() {
+  local conexion
+  if [[ -r /proc/device-tree/model ]]; then
+    MODELO_EQUIPO="$(tr -d '\0' < /proc/device-tree/model)"
+  else
+    MODELO_EQUIPO="Equipo no identificado"
+  fi
+  ARQUITECTURA="$(uname -m)"
+  if [[ -r /etc/os-release ]]; then
+    SISTEMA_OPERATIVO="$(. /etc/os-release; printf '%s' "${PRETTY_NAME:-Linux}")"
+  else
+    SISTEMA_OPERATIVO="Linux"
+  fi
+  VERSION_PYTHON="$(python3 --version 2>&1 || true)"
+
+  if systemctl is-active --quiet NetworkManager 2>/dev/null && command -v nmcli >/dev/null 2>&1; then
+    GESTOR_RED="NetworkManager"
+  elif systemctl is-active --quiet dhcpcd 2>/dev/null; then
+    GESTOR_RED="dhcpcd"
+  else
+    GESTOR_RED="no identificado"
+  fi
+
+  INTERFAZ_RED="$(ip route show default 2>/dev/null | awk 'NR == 1 {print $5}')"
+  if [[ "$GESTOR_RED" == "NetworkManager" && -n "$INTERFAZ_RED" ]]; then
+    conexion="$(nmcli -g GENERAL.CONNECTION device show "$INTERFAZ_RED" 2>/dev/null | head -n 1)"
+    if [[ "$conexion" != "--" ]]; then
+      CONEXION_RED="$conexion"
+    fi
+  fi
+}
+
+validar_entorno_raspberry() {
+  case "$ARQUITECTURA" in
+    aarch64|arm64|armv7l) ;;
+    *)
+      printf 'Arquitectura no admitida para instalación Raspberry: %s\n' "$ARQUITECTURA" >&2
+      exit 2
+      ;;
+  esac
+  if [[ "$MODELO_EQUIPO" != Raspberry\ Pi* ]]; then
+    printf 'El equipo no fue identificado como Raspberry Pi: %s\n' "$MODELO_EQUIPO" >&2
+    exit 2
+  fi
+  if [[ -z "$VERSION_PYTHON" ]]; then
+    printf 'No se encontró Python 3.\n' >&2
+    exit 2
+  fi
+  if [[ -z "$INTERFAZ_RED" ]]; then
+    printf 'No se detectó una conexión de red predeterminada.\n' >&2
+    exit 2
+  fi
+  if [[ "$GESTOR_RED" == "no identificado" ]]; then
+    printf 'No se detectó NetworkManager ni dhcpcd.\n' >&2
+    exit 2
+  fi
+}
+
 confirmar_instalacion() {
   local respuesta
   printf '\nResumen de instalación:\n'
+  printf '  Equipo:  %s\n' "$MODELO_EQUIPO"
+  printf '  Sistema: %s (%s)\n' "$SISTEMA_OPERATIVO" "$ARQUITECTURA"
+  printf '  Python:  %s\n' "$VERSION_PYTHON"
+  printf '  Red:     %s mediante %s\n' "$INTERFAZ_RED" "$GESTOR_RED"
+  if [[ -n "$CONEXION_RED" ]]; then
+    printf '  Conexión: %s\n' "$CONEXION_RED"
+  fi
   printf '  Punto:   %s\n' "$PUNTO"
   printf '  Usuario: %s\n' "$USUARIO_SERVICIO"
   printf '  Programa: /opt/estacionamiento\n'
@@ -161,6 +233,8 @@ instalar_raspberry() {
     printf 'El modo Raspberry debe ejecutarse con sudo.\n' >&2
     exit 2
   fi
+  detectar_entorno_raspberry
+  validar_entorno_raspberry
   if [[ -z "$PUNTO" ]]; then
     seleccionar_punto_interactivo
   fi
