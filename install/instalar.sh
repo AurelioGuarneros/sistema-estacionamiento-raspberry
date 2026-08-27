@@ -15,24 +15,32 @@ INTERFAZ_RED=""
 CONEXION_RED=""
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ORIGEN="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=lib/configuracion.sh
+source "$SCRIPT_DIR/lib/configuracion.sh"
+
+limpiar_temporales() {
+  if [[ -n "${CONFIG_TEMP:-}" && -f "$CONFIG_TEMP" ]]; then
+    rm -f "$CONFIG_TEMP"
+  fi
+}
+trap limpiar_temporales EXIT
 
 instalar_dependencias_sistema() {
-  local comando=(apt-get install -y python3-venv python3-tk)
-  if command -v python3 >/dev/null 2>&1 \
-      && python3 -m venv --help >/dev/null 2>&1 \
-      && python3 -c 'import tkinter' >/dev/null 2>&1; then
-    return
-  fi
+  local paquetes=(python3-venv python3-tk git openssl libusb-1.0-0)
   if ! command -v apt-get >/dev/null 2>&1; then
     printf 'Este instalador requiere una distribución basada en Debian/Ubuntu.\n' >&2
     exit 1
   fi
+  case "$PUNTO" in
+    entrada|salida) paquetes+=(python3-rpi-lgpio) ;;
+    tpv) paquetes+=(mariadb-server mariadb-client) ;;
+  esac
   if [[ "${EUID}" -eq 0 ]]; then
     apt-get update
-    "${comando[@]}"
+    apt-get install -y "${paquetes[@]}"
   else
     sudo apt-get update
-    sudo "${comando[@]}"
+    sudo apt-get install -y "${paquetes[@]}"
   fi
 }
 
@@ -131,6 +139,7 @@ confirmar_instalacion() {
   printf '  Usuario: %s\n' "$USUARIO_SERVICIO"
   printf '  Programa: /opt/estacionamiento\n'
   printf '  Configuración privada: /etc/estacionamiento/config.env\n'
+  mostrar_configuracion_recopilada
   if [[ "$ASUMIR_SI" -eq 1 ]]; then
     return
   fi
@@ -139,6 +148,59 @@ confirmar_instalacion() {
     s|S|si|SI|sí|SÍ) ;;
     *) printf 'Instalación cancelada; no se realizaron cambios.\n'; exit 0 ;;
   esac
+}
+
+configurar_mariadb_tpv() {
+  local cantidad_tablas patron_red archivo_temporal
+  [[ "$PUNTO" == "tpv" ]] || return
+
+  systemctl enable --now mariadb.service
+  archivo_temporal="$(mktemp)"
+  printf '[mysqld]\nbind-address=0.0.0.0\n' > "$archivo_temporal"
+  install -o root -g root -m 0644 "$archivo_temporal" \
+    /etc/mysql/mariadb.conf.d/60-estacionamiento.cnf
+  rm -f "$archivo_temporal"
+  systemctl restart mariadb.service
+
+  cantidad_tablas="$(mariadb -Nse \
+    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';")"
+  if [[ "$cantidad_tablas" == "0" ]]; then
+    mariadb -e \
+      "CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+    mariadb "$DB_NAME" < /opt/estacionamiento/database/schema.sql
+    printf 'Base %s creada e inicializada.\n' "$DB_NAME"
+  else
+    printf 'La base %s ya contiene %s tablas; se conservó sin importar el esquema.\n' \
+      "$DB_NAME" "$cantidad_tablas"
+  fi
+
+  patron_red="${IP_FIJA%.*}.%"
+  mariadb -e \
+    "CREATE USER IF NOT EXISTS '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+     ALTER USER '${DB_USER}'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+     GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'localhost';
+     CREATE USER IF NOT EXISTS '${DB_USER}'@'${patron_red}' IDENTIFIED BY '${DB_PASSWORD}';
+     ALTER USER '${DB_USER}'@'${patron_red}' IDENTIFIED BY '${DB_PASSWORD}';
+     GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'${patron_red}';
+     FLUSH PRIVILEGES;"
+  MYSQL_PWD="$DB_PASSWORD" mariadb \
+    --host=127.0.0.1 --user="$DB_USER" --database="$DB_NAME" \
+    -Nse 'SELECT 1;' >/dev/null
+  printf 'Usuario MariaDB configurado para TPV y clientes de la red local.\n'
+}
+
+configurar_inicio_grafico() {
+  local directorio_autostart="/home/${USUARIO_SERVICIO}/.config/autostart"
+  install -o root -g estacionamiento -m 0755 \
+    "$SCRIPT_DIR/iniciar_estacionamiento.sh" \
+    /opt/estacionamiento/iniciar_estacionamiento.sh
+  install -d -o "$USUARIO_SERVICIO" -g "$USUARIO_SERVICIO" -m 0755 \
+    "$directorio_autostart"
+  sed "s|@PUNTO@|${PUNTO}|g" "$SCRIPT_DIR/estacionamiento.desktop" \
+    > "$directorio_autostart/estacionamiento.desktop"
+  chown "$USUARIO_SERVICIO:$USUARIO_SERVICIO" \
+    "$directorio_autostart/estacionamiento.desktop"
+  chmod 0644 "$directorio_autostart/estacionamiento.desktop"
 }
 
 while (($#)); do
@@ -241,6 +303,8 @@ instalar_raspberry() {
   case "$PUNTO" in entrada|tpv|salida) ;; *) printf 'Indique --punto entrada, tpv o salida.\n' >&2; exit 2 ;; esac
   id "$USUARIO_SERVICIO" >/dev/null 2>&1 || { printf 'No existe el usuario %s.\n' "$USUARIO_SERVICIO" >&2; exit 2; }
 
+  recopilar_configuracion
+  crear_configuracion_temporal
   confirmar_instalacion
 
   instalar_dependencias_sistema
@@ -248,34 +312,22 @@ instalar_raspberry() {
   getent group estacionamiento >/dev/null || groupadd --system estacionamiento
   usermod -a -G estacionamiento,gpio,lp,dialout "$USUARIO_SERVICIO"
   install -d -o root -g estacionamiento -m 0750 /etc/estacionamiento
-  if [[ ! -f /etc/estacionamiento/config.env ]]; then
-    install -o root -g estacionamiento -m 0640 "$ORIGEN/.env.example" /etc/estacionamiento/config.env
-    printf 'Se creó /etc/estacionamiento/config.env; debe completar sus valores.\n'
-  fi
+  instalar_configuracion_privada
 
   install -d -o root -g estacionamiento -m 0755 /opt/estacionamiento
   copiar_punto /opt/estacionamiento "$PUNTO"
-  python3 -m venv /opt/estacionamiento/venv
+  python3 -m venv --system-site-packages /opt/estacionamiento/venv
   /opt/estacionamiento/venv/bin/pip install --upgrade pip
   /opt/estacionamiento/venv/bin/pip install -r /opt/estacionamiento/requirements.txt
   verificar_python /opt/estacionamiento
 
-  local servicio="estacionamiento-${PUNTO}.service"
-  local carpeta ejecutable
-  case "$PUNTO" in
-    entrada) carpeta="Entrada"; ejecutable="entrada.py" ;;
-    tpv) carpeta="TPV"; ejecutable="tpv.py" ;;
-    salida) carpeta="Salida"; ejecutable="salida.py" ;;
-  esac
-  sed -e "s|@USUARIO@|${USUARIO_SERVICIO}|g" \
-      -e "s|@PUNTO@|${PUNTO}|g" \
-      -e "s|@CARPETA@|${carpeta}|g" \
-      -e "s|@EJECUTABLE@|${ejecutable}|g" \
-      "$SCRIPT_DIR/systemd/estacionamiento@.service" > "/etc/systemd/system/${servicio}"
-  systemctl daemon-reload
-  systemctl enable "$servicio"
-  printf '\nServicio instalado: %s\n' "$servicio"
-  printf 'Complete config.env y después ejecute:\n  sudo systemctl start %s\n' "$servicio"
+  configurar_mariadb_tpv
+
+  configurar_inicio_grafico
+  configurar_red_y_hostname
+  printf '\nInicio gráfico instalado para el punto %s.\n' "$PUNTO"
+  printf 'La instalación quedó preparada. Reinicie con:\n  sudo reboot\n'
+  printf 'Después del reinicio, el programa abrirá al iniciar el escritorio.\n'
 }
 
 case "$MODO" in

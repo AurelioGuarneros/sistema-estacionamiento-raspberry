@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Sistema de estacionamiento
+Comment=Inicia el punto de estacionamiento asignado
+Exec=/opt/estacionamiento/iniciar_estacionamiento.sh @PUNTO@
+Terminal=false
+X-GNOME-Autostart-enabled=true

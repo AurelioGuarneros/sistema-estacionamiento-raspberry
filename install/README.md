@@ -31,6 +31,33 @@ Antes de instalar, el asistente comprueba y muestra:
 Si el equipo, Python o la red no son compatibles, se detiene antes de instalar
 paquetes o escribir configuración.
 
+En Raspberry Pi OS Trixie, el asistente también solicita y prepara:
+
+- nombre del equipo e IP fija mediante NetworkManager;
+- puerta de enlace y DNS;
+- nombre, usuario y contraseña privada de MariaDB;
+- servidor, puerto, TLS, origen y destinos de correo cuando el punto es TPV.
+
+La nueva IP no se activa durante la instalación; queda programada para el
+siguiente reinicio, evitando cortar una sesión SSH o VNC a la mitad.
+
+El programa se registra en el inicio automático del escritorio. Este método es
+compatible con la sesión gráfica de Raspberry Pi OS Trixie y evita intentar
+abrir Tkinter antes de que Wayland/XWayland esté disponible.
+
+Cuando se selecciona TPV, el instalador:
+
+- instala y habilita MariaDB;
+- crea la base únicamente si todavía no contiene tablas;
+- importa `database/schema.sql` sólo sobre esa base vacía;
+- crea un usuario limitado a la red local;
+- guarda en `/etc/estacionamiento/credenciales-clientes.env` los datos que se
+  introducirán después en Entrada y Salida.
+
+Las contraseñas no se muestran en el resumen ni se guardan en GitHub. Los
+archivos privados quedan accesibles únicamente para `root` y el grupo
+`estacionamiento`.
+
 ## Modo simulación
 
 - Copia el sistema a una carpeta independiente.
