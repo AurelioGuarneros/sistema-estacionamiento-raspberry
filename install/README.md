@@ -10,6 +10,16 @@ sudo ./install/instalar.sh --modo-raspberry --punto entrada
 
 Los puntos válidos en Raspberry son `entrada`, `tpv` y `salida`.
 
+En una Raspberry nueva puede ejecutar simplemente:
+
+```bash
+sudo ./install/instalar.sh
+```
+
+El instalador mostrará un menú para elegir Entrada, TPV o Salida, presentará
+un resumen y solicitará confirmación antes de realizar cambios. El parámetro
+`--punto` se conserva para instalaciones automatizadas.
+
 ## Modo simulación
 
 - Copia el sistema a una carpeta independiente.
@@ -40,6 +50,8 @@ si el nombre de la base no termina en `_prueba`.
 ## Modo Raspberry
 
 - instala el código en `/opt/estacionamiento`;
+- copia únicamente el punto seleccionado; la TPV recibe además los archivos de
+  estructura y migración de MariaDB;
 - crea el grupo privado `estacionamiento`;
 - conserva la configuración en `/etc/estacionamiento/config.env`;
 - crea un entorno virtual en `/opt/estacionamiento/venv`;

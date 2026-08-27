@@ -5,6 +5,7 @@ MODO=""
 PUNTO=""
 DESTINO=""
 USUARIO_SERVICIO="${SUDO_USER:-${USER:-pi}}"
+ASUMIR_SI=0
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 ORIGEN="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 
@@ -31,8 +32,41 @@ instalar_dependencias_sistema() {
 mostrar_uso() {
   printf '%s\n' \
     "Uso:" \
+    "  sudo ./install/instalar.sh" \
     "  ./install/instalar.sh --modo-simulacion [--destino RUTA]" \
-    "  sudo ./install/instalar.sh --modo-raspberry --punto entrada|tpv|salida [--usuario USUARIO]"
+    "  sudo ./install/instalar.sh --modo-raspberry [--punto entrada|tpv|salida] [--usuario USUARIO] [--si]"
+}
+
+seleccionar_punto_interactivo() {
+  local opcion
+  printf '\nSeleccione el destino de esta Raspberry:\n' >&2
+  printf '  1) Entrada\n  2) TPV\n  3) Salida\n' >&2
+  while true; do
+    read -r -p "Opción [1-3]: " opcion
+    case "$opcion" in
+      1|entrada|Entrada) PUNTO="entrada"; return ;;
+      2|tpv|TPV) PUNTO="tpv"; return ;;
+      3|salida|Salida) PUNTO="salida"; return ;;
+      *) printf 'Opción inválida. Escriba 1, 2 o 3.\n' >&2 ;;
+    esac
+  done
+}
+
+confirmar_instalacion() {
+  local respuesta
+  printf '\nResumen de instalación:\n'
+  printf '  Punto:   %s\n' "$PUNTO"
+  printf '  Usuario: %s\n' "$USUARIO_SERVICIO"
+  printf '  Programa: /opt/estacionamiento\n'
+  printf '  Configuración privada: /etc/estacionamiento/config.env\n'
+  if [[ "$ASUMIR_SI" -eq 1 ]]; then
+    return
+  fi
+  read -r -p "¿Continuar? [s/N]: " respuesta
+  case "$respuesta" in
+    s|S|si|SI|sí|SÍ) ;;
+    *) printf 'Instalación cancelada; no se realizaron cambios.\n'; exit 0 ;;
+  esac
 }
 
 while (($#)); do
@@ -42,11 +76,16 @@ while (($#)); do
     --punto) PUNTO="${2:-}"; shift ;;
     --destino) DESTINO="${2:-}"; shift ;;
     --usuario) USUARIO_SERVICIO="${2:-}"; shift ;;
+    --si) ASUMIR_SI=1 ;;
     -h|--help) mostrar_uso; exit 0 ;;
     *) printf 'Opción desconocida: %s\n' "$1" >&2; mostrar_uso; exit 2 ;;
   esac
   shift
 done
+
+if [[ -z "$MODO" ]]; then
+  MODO="raspberry"
+fi
 
 copiar_proyecto() {
   local destino="$1"
@@ -56,6 +95,25 @@ copiar_proyecto() {
   cp -a "$ORIGEN/Salida" "$destino/"
   cp -a "$ORIGEN/database" "$destino/"
   cp -a "$ORIGEN/requirements.txt" "$destino/"
+}
+
+copiar_punto() {
+  local destino="$1"
+  local punto="$2"
+  local carpeta
+  case "$punto" in
+    entrada) carpeta="Entrada" ;;
+    tpv) carpeta="TPV" ;;
+    salida) carpeta="Salida" ;;
+    *) printf 'Punto inválido al copiar: %s\n' "$punto" >&2; exit 2 ;;
+  esac
+
+  mkdir -p "$destino"
+  cp -a "$ORIGEN/$carpeta" "$destino/"
+  cp -a "$ORIGEN/requirements.txt" "$destino/"
+  if [[ "$punto" == "tpv" ]]; then
+    cp -a "$ORIGEN/database" "$destino/"
+  fi
 }
 
 verificar_python() {
@@ -103,8 +161,13 @@ instalar_raspberry() {
     printf 'El modo Raspberry debe ejecutarse con sudo.\n' >&2
     exit 2
   fi
+  if [[ -z "$PUNTO" ]]; then
+    seleccionar_punto_interactivo
+  fi
   case "$PUNTO" in entrada|tpv|salida) ;; *) printf 'Indique --punto entrada, tpv o salida.\n' >&2; exit 2 ;; esac
   id "$USUARIO_SERVICIO" >/dev/null 2>&1 || { printf 'No existe el usuario %s.\n' "$USUARIO_SERVICIO" >&2; exit 2; }
+
+  confirmar_instalacion
 
   instalar_dependencias_sistema
 
@@ -117,7 +180,7 @@ instalar_raspberry() {
   fi
 
   install -d -o root -g estacionamiento -m 0755 /opt/estacionamiento
-  copiar_proyecto /opt/estacionamiento
+  copiar_punto /opt/estacionamiento "$PUNTO"
   python3 -m venv /opt/estacionamiento/venv
   /opt/estacionamiento/venv/bin/pip install --upgrade pip
   /opt/estacionamiento/venv/bin/pip install -r /opt/estacionamiento/requirements.txt
