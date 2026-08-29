@@ -1,5 +1,6 @@
 import qrcode
-from escpos.printer import Usb, USBNotFoundError
+from escpos.printer import Usb
+from escpos.exceptions import USBNotFoundError
 
 from tkinter import messagebox as mb
 import tkinter as tk

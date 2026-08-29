@@ -10,7 +10,8 @@ from datetime import datetime
 
 from queries import Pensionados
 import traceback
-from escpos.printer import Usb, USBNotFoundError
+from escpos.printer import Usb
+from escpos.exceptions import USBNotFoundError
 
 
 class View_modificar_pensionados():
@@ -324,4 +325,3 @@ class View_modificar_pensionados():
         """ Cierra la ventana principal y detiene el hilo en el que se ejecuta. """
         self.panel_crud.quit()
         self.panel_crud.destroy()
-

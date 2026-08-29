@@ -2,7 +2,8 @@ import os
 from datetime import datetime, date, timedelta
 from tkinter import messagebox as mb
 
-from escpos.printer import Usb, USBNotFoundError
+from escpos.printer import Usb
+from escpos.exceptions import USBNotFoundError
 
 import tkinter as tk
 from tkinter import ttk

@@ -247,6 +247,11 @@ instalar_configuracion_privada() {
 
 configurar_red_y_hostname() {
   hostnamectl set-hostname "$NOMBRE_EQUIPO"
+  if grep -q '^127\.0\.1\.1' /etc/hosts; then
+    sed -i "s/^127\.0\.1\.1.*/127.0.1.1\t${NOMBRE_EQUIPO}/" /etc/hosts
+  else
+    printf '127.0.1.1\t%s\n' "$NOMBRE_EQUIPO" >> /etc/hosts
+  fi
   if [[ "$GESTOR_RED" != "NetworkManager" || -z "$CONEXION_RED" ]]; then
     printf 'La configuración automática de IP requiere NetworkManager.\n' >&2
     exit 2
