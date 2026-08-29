@@ -32,7 +32,7 @@ class Operacion:
     def MaxfolioEntrada(self):
         cone=self.abrir()
         cursor=cone.cursor()
-        sql="select max(id) from Entradas;"
+        sql="select COALESCE(max(id), 0) from Entradas;"
         cursor.execute(sql)
         cone.close()
         return cursor.fetchall()[0][0]
