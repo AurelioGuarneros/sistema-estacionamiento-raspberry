@@ -26,7 +26,7 @@ limpiar_temporales() {
 trap limpiar_temporales EXIT
 
 instalar_dependencias_sistema() {
-  local paquetes=(python3-venv python3-tk git openssl libusb-1.0-0)
+  local paquetes=(python3-venv python3-tk git openssl libusb-1.0-0 usbutils)
   if ! command -v apt-get >/dev/null 2>&1; then
     printf 'Este instalador requiere una distribución basada en Debian/Ubuntu.\n' >&2
     exit 1
@@ -189,6 +189,21 @@ configurar_mariadb_tpv() {
   printf 'Usuario MariaDB configurado para TPV y clientes de la red local.\n'
 }
 
+configurar_impresora_tpv() {
+  local regla_temporal
+  [[ "$PUNTO" == "tpv" ]] || return
+  regla_temporal="$(mktemp)"
+  printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", ATTR{idProduct}=="%s", MODE="0660", GROUP="lp"\n' \
+    "${PRINTER_VENDOR_ID,,}" "${PRINTER_PRODUCT_ID,,}" > "$regla_temporal"
+  install -o root -g root -m 0644 "$regla_temporal" \
+    /etc/udev/rules.d/99-estacionamiento-impresora.rules
+  rm -f "$regla_temporal"
+  udevadm control --reload-rules
+  udevadm trigger --subsystem-match=usb
+  printf 'Permisos USB configurados para la impresora %s:%s.\n' \
+    "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+}
+
 configurar_inicio_grafico() {
   local directorio_autostart="/home/${USUARIO_SERVICIO}/.config/autostart"
   install -o root -g estacionamiento -m 0755 \
@@ -313,6 +328,7 @@ instalar_raspberry() {
   usermod -a -G estacionamiento,gpio,lp,dialout "$USUARIO_SERVICIO"
   install -d -o root -g estacionamiento -m 0750 /etc/estacionamiento
   instalar_configuracion_privada
+  configurar_impresora_tpv
 
   install -d -o root -g estacionamiento -m 0755 /opt/estacionamiento
   copiar_punto /opt/estacionamiento "$PUNTO"

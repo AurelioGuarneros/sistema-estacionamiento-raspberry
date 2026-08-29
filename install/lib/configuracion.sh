@@ -20,6 +20,8 @@ SMTP_PASSWORD=""
 EMAIL_DATABASE=""
 EMAIL_CORTE=""
 EMAIL_NOTIFICACION=""
+PRINTER_VENDOR_ID="04b8"
+PRINTER_PRODUCT_ID="0e15"
 CONFIG_TEMP=""
 
 validar_ipv4() {
@@ -44,6 +46,10 @@ validar_hostname() {
 
 validar_puerto() {
   [[ "$1" =~ ^[0-9]{1,5}$ ]] && ((10#$1 >= 1 && 10#$1 <= 65535))
+}
+
+validar_usb_id() {
+  [[ "$1" =~ ^[0-9A-Fa-f]{4}$ ]]
 }
 
 validar_secreto_sql() {
@@ -166,6 +172,20 @@ recopilar_configuracion() {
     printf 'Se generó automáticamente una contraseña segura para MariaDB.\n'
     printf 'Se guardará en un archivo privado para configurar Entrada y Salida.\n'
 
+    local impresora_detectada
+    impresora_detectada="$(lsusb 2>/dev/null | awk '/Epson/ {print $6; exit}')"
+    if [[ "$impresora_detectada" =~ ^([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})$ ]]; then
+      PRINTER_VENDOR_ID="${BASH_REMATCH[1]}"
+      PRINTER_PRODUCT_ID="${BASH_REMATCH[2]}"
+      printf 'Impresora USB detectada: %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+    fi
+    preguntar_valor PRINTER_VENDOR_ID "ID fabricante USB de la impresora" "$PRINTER_VENDOR_ID"
+    preguntar_valor PRINTER_PRODUCT_ID "ID producto USB de la impresora" "$PRINTER_PRODUCT_ID"
+    validar_usb_id "$PRINTER_VENDOR_ID" && validar_usb_id "$PRINTER_PRODUCT_ID" || {
+      printf 'Los identificadores USB deben tener exactamente cuatro dígitos hexadecimales.\n' >&2
+      exit 2
+    }
+
     printf '\nConfiguración de correo de TPV (puede dejarla vacía y completarla después).\n'
     preguntar_valor SMTP_HOST "Servidor SMTP" ""
     if [[ -n "$SMTP_HOST" ]]; then
@@ -194,6 +214,9 @@ mostrar_configuracion_recopilada() {
   if [[ "$PUNTO" == "tpv" && -n "$SMTP_HOST" ]]; then
     printf '  SMTP:    %s:%s, origen %s\n' "$SMTP_HOST" "$SMTP_PORT" "$SMTP_USER"
   fi
+  if [[ "$PUNTO" == "tpv" ]]; then
+    printf '  Impresora USB: %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+  fi
 }
 
 escapar_valor_env() {
@@ -221,6 +244,8 @@ crear_configuracion_temporal() {
     printf 'ESTACIONAMIENTO_EMAIL_DATABASE=%s\n' "$(escapar_valor_env "$EMAIL_DATABASE")"
     printf 'ESTACIONAMIENTO_EMAIL_CORTE=%s\n' "$(escapar_valor_env "$EMAIL_CORTE")"
     printf 'ESTACIONAMIENTO_EMAIL_NOTIFICACION=%s\n' "$(escapar_valor_env "$EMAIL_NOTIFICACION")"
+    printf 'ESTACIONAMIENTO_PRINTER_VENDOR_ID=%s\n' "$(escapar_valor_env "$PRINTER_VENDOR_ID")"
+    printf 'ESTACIONAMIENTO_PRINTER_PRODUCT_ID=%s\n' "$(escapar_valor_env "$PRINTER_PRODUCT_ID")"
     printf 'DISPLAY=":0"\n'
   } > "$CONFIG_TEMP"
 }

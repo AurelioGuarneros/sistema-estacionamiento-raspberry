@@ -35,7 +35,14 @@ from controller_email import ToolsEmail
 tools = ToolsEmail()
 
 ###--###
-data_rinter = (0x04b8, 0x0e28, 0)
+printer_vendor_id = int(os.environ.get("ESTACIONAMIENTO_PRINTER_VENDOR_ID", "04b8"), 16)
+printer_product_id = int(os.environ.get("ESTACIONAMIENTO_PRINTER_PRODUCT_ID", "0e15"), 16)
+data_rinter = (printer_vendor_id, printer_product_id, 0)
+
+
+def crear_impresora():
+    """Crea la impresora USB configurada para esta TPV."""
+    return Usb(printer_vendor_id, printer_product_id, 0)
 
 contraseña_pensionados = os.environ.get("ESTACIONAMIENTO_PASSWORD_PENSIONADOS", "")
 
@@ -209,7 +216,7 @@ class FormularioOperacion:
         corteNum = 0
         datos=(fechaEntro, corteNum, placa)
 
-        printer = Usb(0x04b8, 0x0e28, 0)
+        printer = crear_impresora()
 
         printer.image(logo_1)
         printer.text("--------------------------------------\n")
@@ -503,7 +510,7 @@ class FormularioOperacion:
         datos=(fechaEntro, corteNum, placa)
 
         #aqui lo imprimimos
-        printer = Usb(0x04b8, 0x0e28, 0)
+        printer = crear_impresora()
 
         printer.image(logo_1)
         printer.text("--------------------------------------\n")
@@ -859,7 +866,7 @@ class FormularioOperacion:
 
         valor = 'N/A'
         # Configuracion de la impresora
-        printer = Usb(0x04b8, 0x0e28, 0)
+        printer = crear_impresora()
         printer.set(align="center")
         printer.text(f"{titulo}\n")
 
@@ -1248,7 +1255,7 @@ class FormularioOperacion:
 
 
 
-        printer = Usb(0x04b8, 0x0e28, 0)
+        printer = crear_impresora()
 
         list_corte = []
 
@@ -1599,7 +1606,7 @@ class FormularioOperacion:
         for fila in respuesta:
             self.scrolledtext1.insert(tk.END, "Entrada num: "+str(fila[0])+"\nEntro: "+str(fila[1])[:-3]+"\nSalio: "+str(fila[2])[:-3]+"\nImporte: "+str(fila[3])+"\n\n")
 
-            printer = Usb(0x04b8, 0x0e28, 0)
+            printer = crear_impresora()
 
             printer.text('Entrada Num :')
             printer.text(str(fila[0]))
@@ -1664,7 +1671,7 @@ class FormularioOperacion:
         self.label4.configure(text = f"Numero de corte {numero_corte}")
 
 
-        printer = Usb(0x04b8, 0x0e28, 0)
+        printer = crear_impresora()
 
         # printer.image(logo_1)
 
@@ -2608,7 +2615,7 @@ class FormularioOperacion:
         Raises:
             None
         """
-        printer = Usb(0x04b8, 0x0e28, 0)
+        printer = crear_impresora()
         # Establece la alineacion del texto al centro
         printer.set(align="center")
 
