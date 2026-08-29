@@ -26,8 +26,10 @@ class Operacion:
         cursor=cone.cursor()
         sql="insert into Entradas(Entrada, CorteInc, Placas) values (%s,%s,%s)"
         cursor.execute(sql, datos)
+        folio=cursor.lastrowid
         cone.commit()
         cone.close()
+        return folio
 
     def MaxfolioEntrada(self):
         cone=self.abrir()

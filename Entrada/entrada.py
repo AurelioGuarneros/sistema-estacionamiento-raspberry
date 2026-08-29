@@ -264,12 +264,7 @@ class FormularioOperacion:
         placa=str(self.Placa.get(), )                 
         datos=(fechaEntro, corteNum, placa)
         time.sleep(1)                            
-        self.operacion1.altaRegistroRFID(datos) 
-        MaxFolio=str(self.operacion1.MaxfolioEntrada())
-        print("MaxFolio 1 ", MaxFolio)
-        MaxFolio = MaxFolio.strip("[(,)]")
-        print("MaxFolio 2 ", MaxFolio)
-        n1 = MaxFolio
+        n1=str(self.operacion1.altaRegistroRFID(datos))
         print("n1 ", n1)
 #        n2 = "1"
 #        masuno = int(n1)+int(n2)

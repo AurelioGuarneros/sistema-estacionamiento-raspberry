@@ -32,7 +32,7 @@ CREATE TABLE `Cambios` (
   `hora` datetime NOT NULL,
   `nombre_usuario` varchar(255) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=199 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -54,7 +54,7 @@ CREATE TABLE `Cortes` (
   `NumBolQued` int(11) DEFAULT NULL,
   `Pensionados_Quedados` int(10) DEFAULT NULL,
   PRIMARY KEY (`Folio`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -78,7 +78,7 @@ CREATE TABLE `Entradas` (
   `QRpromo` varchar(25) DEFAULT NULL,
   `Motivo` varchar(200) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -120,7 +120,7 @@ CREATE TABLE `MovimientosPens` (
   PRIMARY KEY (`Id_movs`),
   KEY `Idcliente` (`Idcliente`),
   CONSTRAINT `MovimientosPens_ibfk_1` FOREIGN KEY (`Idcliente`) REFERENCES `Pensionados` (`Id_cliente`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -142,7 +142,7 @@ CREATE TABLE `MovsUsuarios` (
   PRIMARY KEY (`Id_movs`),
   KEY `Idusuario` (`Idusuario`),
   CONSTRAINT `MovsUsuarios_ibfk_1` FOREIGN KEY (`Idusuario`) REFERENCES `Usuarios` (`Id_usuario`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -164,7 +164,7 @@ CREATE TABLE `PagosPens` (
   PRIMARY KEY (`Id_pago`),
   KEY `Idcliente` (`Idcliente`),
   CONSTRAINT `PagosPens_ibfk_1` FOREIGN KEY (`Idcliente`) REFERENCES `Pensionados` (`Id_cliente`) ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -198,7 +198,7 @@ CREATE TABLE `Pensionados` (
   `Cortesia` varchar(20) DEFAULT NULL,
   `Ult_Cambio` datetime DEFAULT NULL,
   PRIMARY KEY (`Id_cliente`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -219,7 +219,7 @@ CREATE TABLE `Usuarios` (
   `TelefonoEmer` varchar(25) DEFAULT NULL,
   `Sucursal` varchar(25) DEFAULT NULL,
   PRIMARY KEY (`Id_usuario`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

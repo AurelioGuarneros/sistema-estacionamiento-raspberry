@@ -30,6 +30,16 @@ class Operacion:
         cursor=cone.cursor()
         sql="insert into Entradas(Entrada, CorteInc, Placas) values (%s,%s,%s)"
         cursor.execute(sql, datos)
+        folio=cursor.lastrowid
+        cone.commit()
+        cone.close()
+        return folio
+
+    def eliminarEntradaPendiente(self, folio):
+        cone=self.abrir()
+        cursor=cone.cursor()
+        sql="delete from Entradas where id=%s and Salida is null and Importe is null"
+        cursor.execute(sql, (folio,))
         cone.commit()
         cone.close()
 

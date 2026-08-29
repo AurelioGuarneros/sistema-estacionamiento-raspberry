@@ -198,43 +198,35 @@ class FormularioOperacion:
             self.label_informacion.config(text=f"Error: Ingrese una placa")
             return
 
-        MaxFolio=self.DB.MaxfolioEntrada()
-        folio_boleto = int(MaxFolio) + 1
-        self.MaxId.set(folio_boleto)
-
-        folio_cifrado = self.DB.cifrar_folio(folio = folio_boleto)
-        # print(f"QR entrada: {folio_cifrado}")
-
-        #Generar QR
-        self.DB.generar_QR(folio_cifrado)
-
         fechaEntro = datetime.today()
-
         horaentrada = str(fechaEntro)
         horaentrada=horaentrada[:19]
-        # self.labelhr.configure(text=(horaentrada[:-3], "Entro"))
         corteNum = 0
         datos=(fechaEntro, corteNum, placa)
+        folio_boleto = self.DB.altaRegistroRFID(datos)
+        self.MaxId.set(folio_boleto)
 
-        printer = crear_impresora()
+        folio_cifrado = self.DB.cifrar_folio(folio=folio_boleto)
+        self.DB.generar_QR(folio_cifrado)
 
-        printer.image(logo_1)
-        printer.text("--------------------------------------\n")
-        printer.set(align="center")
-        printer.text("BOLETO DE ENTRADA\n")
-        printer.text('Entro: '+horaentrada[:-3]+'\n')
-        printer.text('Placas '+placa+'\n')
-        printer.text(f'Folio 000{folio_boleto}\n')
+        try:
+            printer = crear_impresora()
+            printer.image(logo_1)
+            printer.text("--------------------------------------\n")
+            printer.set(align="center")
+            printer.text("BOLETO DE ENTRADA\n")
+            printer.text('Entro: '+horaentrada[:-3]+'\n')
+            printer.text('Placas '+placa+'\n')
+            printer.text(f'Folio 000{folio_boleto}\n')
+            printer.set(align="center")
+            printer.image(qr_imagen)
+            printer.text("--------------------------------------\n")
+            printer.cut()
+            printer.close()
+        except Exception:
+            self.DB.eliminarEntradaPendiente(folio_boleto)
+            raise
 
-        printer.set(align = "center")
-        printer.image(qr_imagen)
-
-        printer.text("--------------------------------------\n")
-        printer.cut()
-
-        printer.close()
-
-        self.DB.altaRegistroRFID(datos)
         self.Placa.set('')
         self.label_informacion.config(text="Se genera boleto")
 
@@ -498,38 +490,34 @@ class FormularioOperacion:
         if Boleto_perdido == False:
             return
 
-        MaxFolio = self.DB.MaxfolioEntrada()
-        folio_boleto = MaxFolio + 1
-        self.MaxId.set(folio_boleto)
-
         fechaEntro = datetime.today()
         horaentrada = str(fechaEntro)
         horaentrada=horaentrada[:19]
         corteNum = 0
         placa="BoletoPerdido"
         datos=(fechaEntro, corteNum, placa)
+        folio_boleto = self.DB.altaRegistroRFID(datos)
+        self.MaxId.set(folio_boleto)
 
         #aqui lo imprimimos
-        printer = crear_impresora()
+        try:
+            printer = crear_impresora()
+            printer.image(logo_1)
+            printer.text("--------------------------------------\n")
+            printer.set(align="center")
+            printer.text("B O L E T O  P E R D I D O\n")
+            printer.text("BOLETO DE ENTRADA\n")
+            printer.text('Entro: '+horaentrada[:-3]+'\n')
+            printer.text('Placas '+placa+'\n')
+            printer.text(f'Folio 000{folio_boleto}\n')
+            printer.text("B O L E T O  P E R D I D O\n")
+            printer.text("--------------------------------------\n")
+            printer.cut()
+            printer.close()
+        except Exception:
+            self.DB.eliminarEntradaPendiente(folio_boleto)
+            raise
 
-        printer.image(logo_1)
-        printer.text("--------------------------------------\n")
-        printer.set(align = "center")
-        printer.text("B O L E T O  P E R D I D O\n")
-        printer.set(align="center")
-        printer.text("BOLETO DE ENTRADA\n")
-        printer.text('Entro: '+horaentrada[:-3]+'\n')
-        printer.text('Placas '+placa+'\n')
-        printer.text(f'Folio 000{folio_boleto}\n')
-        printer.set(align = "center")
-        printer.text("B O L E T O  P E R D I D O\n")
-        printer.text("--------------------------------------\n")
-
-        printer.cut()
-        printer.close()
-
-        #Agregar registro del pago a la base de datos
-        self.DB.altaRegistroRFID(datos)
         self.Placa.set('')
 
         self.BoletoDentro()
