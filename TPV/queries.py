@@ -298,7 +298,9 @@ class Pensionados(Usuarios):
         # Se ejecuta la consulta y se obtiene el resultado.
         resultado = self.execute_query(query)
 
-        return resultado[0][0]
+        # En el primer corte no existe un folio anterior (folio 0).
+        # En ese caso no hay pensionados heredados del turno previo.
+        return resultado[0][0] if resultado else 0
 
     def get_QR_id(self):
         query =f"""SELECT COALESCE(MAX(Id_cliente), 0) FROM Pensionados;"""
@@ -309,4 +311,3 @@ class Pensionados(Usuarios):
         ID = resultado[0][0] + 1
 
         return ID
-
