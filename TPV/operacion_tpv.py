@@ -124,8 +124,9 @@ class Operacion:
         sql="select Quedados from Cortes where Folio=%s"
        #sql="select descripcion, precio from articulos where codigo=%s"
         cursor.execute(sql, datos)
+        fila=cursor.fetchone()
         cone.close()
-        return cursor.fetchall()[0][0]
+        return fila[0] if fila and fila[0] is not None else 0
 
     def NumBolQued(self, datos):
         cone=self.abrir()

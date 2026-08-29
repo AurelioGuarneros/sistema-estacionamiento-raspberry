@@ -1590,34 +1590,39 @@ class FormularioOperacion:
     def listar1(self):
         respuesta=self.DB.recuperar_sincobro()
         self.scrolledtext1.delete("1.0", tk.END)
-        #respuesta=str(respuesta)
-        for fila in respuesta:
-            self.scrolledtext1.insert(tk.END, "Entrada num: "+str(fila[0])+"\nEntro: "+str(fila[1])[:-3]+"\nSalio: "+str(fila[2])[:-3]+"\nImporte: "+str(fila[3])+"\n\n")
+        if not respuesta:
+            self.scrolledtext1.insert(tk.END, "No hay entradas cobradas pendientes de corte.\n")
+            return
 
-            printer = crear_impresora()
-
-            printer.text('Entrada Num :')
-            printer.text(str(fila[0]))
-            printer.text('\n')
-            printer.text('Entro :')
-            printer.text(str(fila[1])[:-3])
-            printer.text('\n')
-            printer.text('Salio :')
-            printer.text(str(fila[2])[:-3])
-            printer.text('\n')
-            printer.text('importe :')
-            printer.text(str(fila[3]))
-            printer.text('\n')
-        else:
-            print("-")
+        printer = crear_impresora()
+        try:
+            for fila in respuesta:
+                self.scrolledtext1.insert(tk.END, "Entrada num: "+str(fila[0])+"\nEntro: "+str(fila[1])[:-3]+"\nSalio: "+str(fila[2])[:-3]+"\nImporte: "+str(fila[3])+"\n\n")
+                printer.text('Entrada Num :')
+                printer.text(str(fila[0]))
+                printer.text('\n')
+                printer.text('Entro :')
+                printer.text(str(fila[1])[:-3])
+                printer.text('\n')
+                printer.text('Salio :')
+                printer.text(str(fila[2])[:-3])
+                printer.text('\n')
+                printer.text('Importe :')
+                printer.text(str(fila[3]))
+                printer.text('\n\n')
             printer.cut()
+        finally:
             printer.close()
 
     def Calcular_Corte(self):
         self.ImporteCorte.set(self.DB.corte())
 
         ##obtengamo la fechaFin del ultimo corte
-        self.FechUCORTE.set(self.DB.UltimoCorte())
+        inicio_corte = self.DB.UltimoCorte()
+        if inicio_corte is None:
+            cajero = self.DB.CajeroenTurno()
+            inicio_corte = cajero[0][2] if cajero and cajero[0][2] else datetime.now()
+        self.FechUCORTE.set(inicio_corte.strftime('%Y-%m-%d %H:%M:%S') if hasattr(inicio_corte, 'strftime') else inicio_corte)
 
         self.FechaCorte.set(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))#donde el label esta bloqueado
 
