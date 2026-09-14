@@ -22,6 +22,11 @@ EMAIL_CORTE=""
 EMAIL_NOTIFICACION=""
 PRINTER_VENDOR_ID="04b8"
 PRINTER_PRODUCT_ID="0e15"
+GPIO_SENSOR_AUTO="4"
+GPIO_BOTON="18"
+GPIO_SENSOR_BOLETO="23"
+SENSOR_BOLETO_ACTIVO_BAJO="true"
+SENSOR_BOLETO_TIMEOUT="30"
 CONFIG_TEMP=""
 
 validar_ipv4() {
@@ -50,6 +55,14 @@ validar_puerto() {
 
 validar_usb_id() {
   [[ "$1" =~ ^[0-9A-Fa-f]{4}$ ]]
+}
+
+validar_gpio_bcm() {
+  [[ "$1" =~ ^[0-9]{1,2}$ ]] && ((10#$1 >= 0 && 10#$1 <= 27))
+}
+
+validar_timeout_sensor() {
+  [[ "$1" =~ ^[0-9]{1,3}$ ]] && ((10#$1 >= 5 && 10#$1 <= 120))
 }
 
 validar_secreto_sql() {
@@ -203,6 +216,39 @@ recopilar_configuracion() {
     preguntar_ipv4 DB_HOST "IP de la TPV" "${IP_FIJA%.*}.210"
     preguntar_secreto DB_PASSWORD "Contraseña MariaDB generada por TPV"
   fi
+
+  if [[ "$PUNTO" == "entrada" ]]; then
+    local impresora_entrada
+    impresora_entrada="$(lsusb 2>/dev/null | awk '/Epson/ {print $6; exit}')"
+    if [[ "$impresora_entrada" =~ ^([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})$ ]]; then
+      PRINTER_VENDOR_ID="${BASH_REMATCH[1]}"
+      PRINTER_PRODUCT_ID="${BASH_REMATCH[2]}"
+      printf 'Impresora de Entrada detectada: %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+    else
+      PRINTER_PRODUCT_ID="0e28"
+    fi
+    preguntar_valor PRINTER_VENDOR_ID "ID fabricante USB de impresora Entrada" "$PRINTER_VENDOR_ID"
+    preguntar_valor PRINTER_PRODUCT_ID "ID producto USB de impresora Entrada" "$PRINTER_PRODUCT_ID"
+    validar_usb_id "$PRINTER_VENDOR_ID" && validar_usb_id "$PRINTER_PRODUCT_ID" || {
+      printf 'Los identificadores USB deben tener cuatro dígitos hexadecimales.\n' >&2
+      exit 2
+    }
+    preguntar_valor GPIO_SENSOR_AUTO "GPIO BCM sensor de automóvil" "$GPIO_SENSOR_AUTO"
+    preguntar_valor GPIO_BOTON "GPIO BCM botón" "$GPIO_BOTON"
+    preguntar_valor GPIO_SENSOR_BOLETO "GPIO BCM sensor de boleto" "$GPIO_SENSOR_BOLETO"
+    validar_gpio_bcm "$GPIO_SENSOR_AUTO" && validar_gpio_bcm "$GPIO_BOTON" && validar_gpio_bcm "$GPIO_SENSOR_BOLETO" || {
+      printf 'Los GPIO BCM deben estar entre 0 y 27.\n' >&2
+      exit 2
+    }
+    if [[ "$GPIO_SENSOR_AUTO" == "$GPIO_BOTON" || "$GPIO_SENSOR_AUTO" == "$GPIO_SENSOR_BOLETO" || "$GPIO_BOTON" == "$GPIO_SENSOR_BOLETO" ]]; then
+      printf 'Los tres GPIO de Entrada deben ser diferentes.\n' >&2
+      exit 2
+    fi
+    preguntar_valor SENSOR_BOLETO_ACTIVO_BAJO "Sensor activo en bajo (true/false)" "$SENSOR_BOLETO_ACTIVO_BAJO"
+    case "$SENSOR_BOLETO_ACTIVO_BAJO" in true|false) ;; *) printf 'Polaridad inválida.\n' >&2; exit 2 ;; esac
+    preguntar_valor SENSOR_BOLETO_TIMEOUT "Espera para retirar boleto (5-120 s)" "$SENSOR_BOLETO_TIMEOUT"
+    validar_timeout_sensor "$SENSOR_BOLETO_TIMEOUT" || { printf 'Espera inválida.\n' >&2; exit 2; }
+  fi
 }
 
 mostrar_configuracion_recopilada() {
@@ -214,8 +260,12 @@ mostrar_configuracion_recopilada() {
   if [[ "$PUNTO" == "tpv" && -n "$SMTP_HOST" ]]; then
     printf '  SMTP:    %s:%s, origen %s\n' "$SMTP_HOST" "$SMTP_PORT" "$SMTP_USER"
   fi
-  if [[ "$PUNTO" == "tpv" ]]; then
+  if [[ "$PUNTO" == "tpv" || "$PUNTO" == "entrada" ]]; then
     printf '  Impresora USB: %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+  fi
+  if [[ "$PUNTO" == "entrada" ]]; then
+    printf '  GPIO auto/botón/boleto: %s/%s/%s BCM\n' "$GPIO_SENSOR_AUTO" "$GPIO_BOTON" "$GPIO_SENSOR_BOLETO"
+    printf '  Sensor activo-bajo: %s; espera: %ss\n' "$SENSOR_BOLETO_ACTIVO_BAJO" "$SENSOR_BOLETO_TIMEOUT"
   fi
 }
 
@@ -246,6 +296,11 @@ crear_configuracion_temporal() {
     printf 'ESTACIONAMIENTO_EMAIL_NOTIFICACION=%s\n' "$(escapar_valor_env "$EMAIL_NOTIFICACION")"
     printf 'ESTACIONAMIENTO_PRINTER_VENDOR_ID=%s\n' "$(escapar_valor_env "$PRINTER_VENDOR_ID")"
     printf 'ESTACIONAMIENTO_PRINTER_PRODUCT_ID=%s\n' "$(escapar_valor_env "$PRINTER_PRODUCT_ID")"
+    printf 'ESTACIONAMIENTO_GPIO_SENSOR_AUTO=%s\n' "$(escapar_valor_env "$GPIO_SENSOR_AUTO")"
+    printf 'ESTACIONAMIENTO_GPIO_BOTON=%s\n' "$(escapar_valor_env "$GPIO_BOTON")"
+    printf 'ESTACIONAMIENTO_GPIO_SENSOR_BOLETO=%s\n' "$(escapar_valor_env "$GPIO_SENSOR_BOLETO")"
+    printf 'ESTACIONAMIENTO_SENSOR_BOLETO_ACTIVO_BAJO=%s\n' "$(escapar_valor_env "$SENSOR_BOLETO_ACTIVO_BAJO")"
+    printf 'ESTACIONAMIENTO_SENSOR_BOLETO_TIMEOUT=%s\n' "$(escapar_valor_env "$SENSOR_BOLETO_TIMEOUT")"
     printf 'DISPLAY=":0"\n'
   } > "$CONFIG_TEMP"
 }
