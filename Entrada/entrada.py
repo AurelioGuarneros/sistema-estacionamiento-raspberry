@@ -270,7 +270,8 @@ class FormularioOperacion:
             # sera una pulsacion real.
             BotonArmado = 1
             self.BotDet.config(text = "solto btn", font=('Arial', 15), background='#CCC') #'#CCC'       
-            self.SenBol.config(text = "", font=('Arial', 15), background="#CCC")
+            if not self._esperando_retiro:
+                self.SenBol.config(text = "", font=('Arial', 15), background="#CCC")
             #if BanBoton == 1 and BanLoop==1:
            
 
@@ -286,9 +287,14 @@ class FormularioOperacion:
             elif self._sensor_vio_boleto:
                 self._esperando_retiro = False
                 self._sensor_vio_boleto = False
-                self.SenBol.config(text="3) AVANCE",
-                                   font=('Arial', 15), background="green")
-                self._abrir_barrera()
+                if BanLoop == 1:
+                    self.SenBol.config(text="3) AVANCE",
+                                       font=('Arial', 15), background="green")
+                    self._abrir_barrera()
+                else:
+                    self.SenBol.config(text="SIN AUTO - BARRERA CERRADA",
+                                       font=('Arial', 15), background="red")
+                    print("Retiro confirmado sin automóvil: no se abre")
             elif time.monotonic() - self._inicio_espera_boleto >= tiempo_retiro_boleto:
                 self._esperando_retiro = False
                 self.SenBol.config(text="SENSOR SIN BOLETO - BARRERA CERRADA",
