@@ -189,9 +189,9 @@ configurar_mariadb_tpv() {
   printf 'Usuario MariaDB configurado para TPV y clientes de la red local.\n'
 }
 
-configurar_impresora_tpv() {
+configurar_impresora_punto() {
   local regla_temporal
-  [[ "$PUNTO" == "tpv" ]] || return
+  [[ "$PUNTO" == "tpv" || "$PUNTO" == "entrada" ]] || return
   regla_temporal="$(mktemp)"
   printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", ATTR{idProduct}=="%s", MODE="0660", GROUP="lp"\n' \
     "${PRINTER_VENDOR_ID,,}" "${PRINTER_PRODUCT_ID,,}" > "$regla_temporal"
@@ -328,7 +328,7 @@ instalar_raspberry() {
   usermod -a -G estacionamiento,gpio,lp,dialout "$USUARIO_SERVICIO"
   install -d -o root -g estacionamiento -m 0750 /etc/estacionamiento
   instalar_configuracion_privada
-  configurar_impresora_tpv
+  configurar_impresora_punto
 
   install -d -o root -g estacionamiento -m 0755 /opt/estacionamiento
   copiar_punto /opt/estacionamiento "$PUNTO"
