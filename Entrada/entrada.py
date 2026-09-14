@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+import os
 formato = "%H:%M:%S"
 from escpos.printer import *
 import qrcode
@@ -14,9 +15,17 @@ import traceback
 import RPi.GPIO as io
 
 # Pines
-pin_sensor_autos = 4
-pin_boton = 18
-pin_sensor_boletos = 23
+pin_sensor_autos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_AUTO", "4"))
+pin_boton = int(os.environ.get("ESTACIONAMIENTO_GPIO_BOTON", "18"))
+pin_sensor_boletos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_BOLETO", "23"))
+sensor_boleto_activo_bajo = os.environ.get(
+    "ESTACIONAMIENTO_SENSOR_BOLETO_ACTIVO_BAJO", "true"
+).lower() in ("1", "true", "si", "yes")
+tiempo_retiro_boleto = float(
+    os.environ.get("ESTACIONAMIENTO_SENSOR_BOLETO_TIMEOUT", "30")
+)
+printer_vendor_id = int(os.environ.get("ESTACIONAMIENTO_PRINTER_VENDOR_ID", "04b8"), 16)
+printer_product_id = int(os.environ.get("ESTACIONAMIENTO_PRINTER_PRODUCT_ID", "0e28"), 16)
 
 #Entrada
 loop = pin_sensor_autos                      #gpio16,pin36,entrada loop                    
@@ -34,7 +43,8 @@ io.setup(loop,io.IN)             # configura en el micro las entradas
 # El programa considera nivel alto como boton presionado. El pull-down evita
 # que el GPIO quede flotando durante el arranque de la Raspberry.
 io.setup(boton,io.IN, pull_up_down=io.PUD_DOWN)
-# io.setup(SenBoleto,io.IN)             # configura en el micro las entradas
+# 0 V = boleto presente por defecto; nunca conecte 5 V al GPIO.
+io.setup(SenBoleto, io.IN, pull_up_down=io.PUD_UP)
 # La barrera de Entrada es activa en bajo. Se inicializa en alto desde el
 # mismo setup para evitar un pulso de apertura antes de ejecutar io.output().
 io.setup(barrera,io.OUT, initial=io.HIGH)
@@ -49,7 +59,7 @@ io.output(out3,0)
 BanLoop =0
 BanBoton=0
 BotonArmado=0 #No se acepta hasta detectar primero el boton suelto
-# BanSenBoleto=0
+BanSenBoleto=0
 BanImpresion=0 #No ha impreso
 # Configuracion de las entradas y las salidas del micro
 # -----------------------------------------------------
@@ -64,6 +74,9 @@ class FormularioOperacion:
         self.cuaderno1.config(cursor="")
         self._rfid_after_id = None
         self._rfid_en_proceso = False
+        self._esperando_retiro = False
+        self._sensor_vio_boleto = False
+        self._inicio_espera_boleto = 0.0
 
         self.ExpedirRfid()
         # Leer primero los GPIO reales. Si check_inputs se ejecuta antes,
@@ -71,6 +84,7 @@ class FormularioOperacion:
         # haber comprobado que fisicamente estaba suelto.
         self.IntBoton()
         self.Intloop()
+        self.IntSenBoleto()
         self.check_inputs()
 
         self.cuaderno1.grid(column=0, row=0, padx=5, pady=5)
@@ -189,8 +203,16 @@ class FormularioOperacion:
             io.output(out2,1)
             BanBoton = 0
 
+    def IntSenBoleto(self, channel=None):
+        """Lee el sensor; no abre la barrera desde la interrupción."""
+        global BanSenBoleto
+        nivel = io.input(SenBoleto)
+        activo = nivel == io.LOW if sensor_boleto_activo_bajo else nivel == io.HIGH
+        BanSenBoleto = int(activo)
+
     io.add_event_detect(loop, io.BOTH, callback = Intloop)
     io.add_event_detect(boton, io.BOTH, callback = IntBoton)
+    io.add_event_detect(SenBoleto, io.BOTH, callback = IntSenBoleto, bouncetime=30)
 
 
     def check_inputs(self):
@@ -223,17 +245,23 @@ class FormularioOperacion:
                     background='orange'
                 )
                 BotonArmado = 0
-            elif BanImpresion == 1:
-                # Se desarma antes de abrir para que mantener presionado el
-                # boton no genere otra entrada.
+            elif BanImpresion == 1 and not self._esperando_retiro:
+                # Primero imprime; la barrera continúa cerrada.
                 BotonArmado = 0
-                #self.SenBol.config(text = "AVANCE", font=('Arial', 15), background= "green") #'#CCC'
-                print('mando abrir barrera')
-                io.output(barrera,0)#con un "0" abre la barrera
-                time.sleep (1)
-                io.output(barrera,1)
-                self.agregarRegistroRFID()                
                 BanImpresion = 0
+                try:
+                    self.agregarRegistroRFID()
+                    self._esperando_retiro = True
+                    self._sensor_vio_boleto = False
+                    self._inicio_espera_boleto = time.monotonic()
+                    self.SenBol.config(text="2) TOME SU BOLETO",
+                                       font=('Arial', 15), background="orange")
+                    print("Boleto impreso; esperando presencia y retiro")
+                except Exception:
+                    BanImpresion = 1
+                    self.SenBol.config(text="ERROR IMPRESION - BARRERA CERRADA",
+                                       font=('Arial', 15), background="red")
+                    traceback.print_exc()
             else:   
                 self.SenBol.config(text = "press btn sin impresion", font=('Arial', 15), background= "red") 
 
@@ -248,6 +276,25 @@ class FormularioOperacion:
 
             #BanImpresion = 1
 
+        # Se exige la secuencia presente -> retirado. Un cable roto o un
+        # sensor que nunca cambia no puede abrir la barrera.
+        if self._esperando_retiro:
+            if BanSenBoleto == 1:
+                self._sensor_vio_boleto = True
+                self.SenBol.config(text="2) TOME SU BOLETO",
+                                   font=('Arial', 15), background="orange")
+            elif self._sensor_vio_boleto:
+                self._esperando_retiro = False
+                self._sensor_vio_boleto = False
+                self.SenBol.config(text="3) AVANCE",
+                                   font=('Arial', 15), background="green")
+                self._abrir_barrera()
+            elif time.monotonic() - self._inicio_espera_boleto >= tiempo_retiro_boleto:
+                self._esperando_retiro = False
+                self.SenBol.config(text="SENSOR SIN BOLETO - BARRERA CERRADA",
+                                   font=('Arial', 15), background="red")
+                print("Tiempo agotado: no se confirmó la presencia del boleto")
+
         now =datetime.now() 
         fecha1= now.strftime("%d-%b-%y")
         hora1= now.strftime("%H:%M:%S")    
@@ -256,6 +303,13 @@ class FormularioOperacion:
         self.ventana1.after(60, self.check_inputs)          # activa un timer de 50mSeg.
 
      
+    def _abrir_barrera(self):
+        """Pulso activo-bajo posterior a la confirmación de retiro."""
+        print("Retiro confirmado - abre barrera")
+        io.output(barrera, io.LOW)
+        time.sleep(1)
+        io.output(barrera, io.HIGH)
+
     def agregarRegistroRFID(self):
 #$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$impresion    $$$$$$$$$$$$$$$$$$$
         fechaEntro = datetime.today()
@@ -296,7 +350,7 @@ class FormularioOperacion:
         
         
         #p = Usb(0x04b8, 0x0202, 0)#0202 04b8:
-        p = Usb(0x04b8, 0x0e28, 0)
+        p = Usb(printer_vendor_id, printer_product_id, 0)
         #p.set("center")
         #p.text("BOLETO DE ENTRADA\n")
         p.set("center")
