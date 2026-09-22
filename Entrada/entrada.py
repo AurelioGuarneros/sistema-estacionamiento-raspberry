@@ -15,9 +15,9 @@ import traceback
 import RPi.GPIO as io
 
 # Pines
-pin_sensor_autos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_AUTO", "4"))
-pin_boton = int(os.environ.get("ESTACIONAMIENTO_GPIO_BOTON", "18"))
-pin_sensor_boletos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_BOLETO", "23"))
+pin_sensor_autos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_AUTO", "21"))
+pin_boton = int(os.environ.get("ESTACIONAMIENTO_GPIO_BOTON", "20"))
+pin_sensor_boletos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_BOLETO", "16"))
 sensor_boleto_activo_bajo = os.environ.get(
     "ESTACIONAMIENTO_SENSOR_BOLETO_ACTIVO_BAJO", "true"
 ).lower() in ("1", "true", "si", "yes")
@@ -39,10 +39,9 @@ out2 = 6                     #gpio6,pin31,Salida indicador boton
 out3 = 26                     #gpio26,pin37,Salida indicador barrera
 io.setmode(io.BCM)              # modo in/out pin del micro
 io.setwarnings(False)           # no señala advertencias de pin ya usados
-io.setup(loop,io.IN)             # configura en el micro las entradas
-# El programa considera nivel alto como boton presionado. El pull-down evita
-# que el GPIO quede flotando durante el arranque de la Raspberry.
-io.setup(boton,io.IN, pull_up_down=io.PUD_DOWN)
+io.setup(loop, io.IN, pull_up_down=io.PUD_UP)  # contacto seco: activo en bajo
+# El botón conecta el GPIO a GND: LOW al presionar y HIGH al soltar.
+io.setup(boton, io.IN, pull_up_down=io.PUD_UP)
 # 0 V = boleto presente por defecto; nunca conecte 5 V al GPIO.
 io.setup(SenBoleto, io.IN, pull_up_down=io.PUD_UP)
 # La barrera de Entrada es activa en bajo. Se inicializa en alto desde el
@@ -185,7 +184,7 @@ class FormularioOperacion:
 
     def Intloop(self): #Detecta presencia de automovil
         global BanLoop
-        if io.input(loop):
+        if io.input(loop) == io.LOW:
             print('hay auto') 
             io.output(out1,0)#con un "1" se apaga el led
             BanLoop = 1
@@ -195,7 +194,7 @@ class FormularioOperacion:
 
     def IntBoton(self): #Detecta presencia de automovil
         global BanBoton
-        if io.input(boton):
+        if io.input(boton) == io.LOW:
             print('Presiono boton')
             io.output(out2,0)
             BanBoton = 1
@@ -228,8 +227,8 @@ class FormularioOperacion:
 
         if BanBoton == 1:
             self.BotDet.config(text = "presiono btn", font=('Arial', 15), background='#CCC') #'#CCC'
-            # Protección de arranque: un nivel alto presente al iniciar no
-            # cuenta como pulsacion. Primero debe detectarse el boton suelto.
+            # Protección de arranque: un nivel bajo presente al iniciar no
+            # cuenta como pulsación. Primero debe detectarse el botón suelto.
             if BotonArmado == 0:
                 self.BotDet.config(
                     text="SUELTE BOTON",
@@ -266,8 +265,8 @@ class FormularioOperacion:
                 self.SenBol.config(text = "press btn sin impresion", font=('Arial', 15), background= "red") 
 
         else: 
-            # El boton ya fue visto en reposo; la proxima transicion a alto
-            # sera una pulsacion real.
+            # El botón ya fue visto en reposo (HIGH); la próxima transición a
+            # LOW será una pulsación real.
             BotonArmado = 1
             self.BotDet.config(text = "solto btn", font=('Arial', 15), background='#CCC') #'#CCC'       
             if not self._esperando_retiro:
