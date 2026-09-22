@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Muestra BOLETO PRESENTE/BOQUILLA LIBRE; no usa salidas GPIO."
     )
-    parser.add_argument("--gpio", type=int, default=23, help="GPIO en numeración BCM")
+    parser.add_argument("--gpio", type=int, default=16, help="GPIO en numeración BCM")
     parser.add_argument(
         "--activo-alto",
         action="store_true",
