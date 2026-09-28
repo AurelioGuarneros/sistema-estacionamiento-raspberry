@@ -91,75 +91,127 @@ class FormularioOperacion:
     ###########################Inicia Pagina1##########################
 # Funcion de lectura de las entradas
 # -----------------------------------
-    def ExpedirRfid(self):    
-        self.pagina1 = ttk.Frame(self.cuaderno1)
-        self.cuaderno1.add(self.pagina1, text="Expedir Boleto")
-        #enmarca los controles LabelFrame
-        self.labelframe1=ttk.LabelFrame(self.pagina1, text=" ")
-        self.labelframe1.grid(column=0, row=0, padx=0, pady=0)
-        self.Adentroframe=ttk.LabelFrame(self.pagina1, text=" ")
-        self.Adentroframe.grid(column=1, row=0, padx=0, pady=0)
-        self.MaxId=tk.StringVar()
-        self.entryMaxId=ttk.Entry(self.labelframe1, width=10, textvariable=self.MaxId, state="readonly")
-        self.entryMaxId.grid(column=1, row=0, padx=4, pady=4)
+    def ExpedirRfid(self):
+        """Construye la pantalla de Entrada sin alterar la lógica de seguridad."""
+        self.ventana1.configure(bg="#f4f6f8")
+        self.ventana1.attributes("-fullscreen", True)
+        self.ventana1.bind("<Escape>", lambda _event: self.ventana1.attributes("-fullscreen", False))
+        self.ventana1.bind("<F11>", lambda _event: self.ventana1.attributes(
+            "-fullscreen", not self.ventana1.attributes("-fullscreen")
+        ))
 
-        self.Bienvenida = ttk.Label(self.Adentroframe, text="BIENVENIDOS", width = 20, font=('Arial', 30))#, background = '#FD6')
-        #self.Bienvenida.config(font=('Arial', 40))
-        self.Bienvenida.grid(column=2, row=2, padx=0, pady=0)
-        self.SenBol2 = ttk.Label(self.Adentroframe, text=".", width = 20, font=('Arial', 15))#, background = '#CCC') , background = 'green'
-        self.SenBol2.grid(column=1, row=12, padx=0, pady=0)
-        self.loopDet = ttk.Label(self.Adentroframe, text="1) OPRIMA EL BOTON ", width = 20, font=('Arial', 15), background = '#CCC') #, background = '#FD6')
-        self.loopDet.grid(column=1, row=8, padx=0, pady=0)
-        self.BotDet = ttk.Label(self.Adentroframe, text="Boton", width = 20, font=('Arial', 15), background = '#CCC')#, background = '#CCC')
-        self.BotDet.grid(column=1, row=6, padx=0, pady=0)
-        self.SenBol = ttk.Label(self.Adentroframe, text=".", width = 20, font=('Arial', 15))#, background = '#CCC') , background = 'green'
-        self.SenBol.grid(column=1, row=10, padx=0, pady=0)
-        
-        #self.Reloj = ttk.Label(self.pagina1, text="Hora y fecha", width = 10, background = '#FD6')
-        #self.Reloj.grid(column=0, row=6, padx=0, pady=0)
+        self.pagina1 = tk.Frame(self.cuaderno1, bg="#f4f6f8")
+        self.cuaderno1.add(self.pagina1, text="Entrada")
+        self.pagina1.grid_columnconfigure(0, weight=1)
+        self.pagina1.grid_rowconfigure(1, weight=1)
 
-        self.Reloj = ttk.Label(self.pagina1, text="Reloj") #Creación del Label
-        self.Reloj.config(width =10)
-        self.Reloj.config(background="white") #Cambiar color de fondo
-        self.Reloj.config(font=('Arial', 60)) #Cambiar tipo y tamaño de fuente 80
-        self.Reloj.grid(column=1, row=12, padx=0, pady=0)  #4 
-        
-        self.mi_reloj = ttk.Label(self.pagina1, text="Reloj") #Creación del Label
-        self.mi_reloj.config(width =10)
-        self.mi_reloj.config(background="white") #Cambiar color de fondo
-        self.mi_reloj.config(font=('Arial', 60)) #Cambiar tipo y tamaño de fuente 80
-        self.mi_reloj.grid(column=1, row=14, padx=0, pady=0)       #6 
-        self.boton2=tk.Button(self.pagina1, text="Salir del programa", command=quit, width=15, height=1, anchor="center", background="blue")
-        self.boton2.grid(column=1, row=16, padx=4, pady=4)  
-        #####tomar placas del auto
-        self.Placa=tk.StringVar()
-        self.entryPlaca=tk.Entry(self.labelframe1, width=15, textvariable=self.Placa)
-        self.entryPlaca.grid(column=1, row=1, padx=4, pady=4)
-       
- 
-        self.boton1=tk.Button(self.labelframe1, text="Generar Entrada", command=self.agregarRegistroRFID, width=13, height=3, anchor="center", background="blue")
-        self.boton1.grid(column=1, row=4, padx=4, pady=4)
+        # Variables que utiliza la lógica existente.
+        self.MaxId = tk.StringVar()
+        self.Placa = tk.StringVar()
+        self.NumTarjeta4 = tk.StringVar()
 
-        ###Pensionados
-        self.labelframe3=ttk.LabelFrame(self.pagina1, text="PENSIONADOS")
-        self.labelframe3.grid(column=1, row=2, padx=0, pady=0)        
-        self.labelTarjeta=ttk.Label(self.labelframe3, text="Tarjeta:")
-        self.labelTarjeta.grid(column=0, row=2, padx=0, pady=0)
-        self.NumTarjeta4=tk.StringVar()
-        self.entryNumTarjeta4=tk.Entry(self.labelframe3, width=20, textvariable=self.NumTarjeta4)
-        # La mayoria de los lectores RFID funcionan como teclado y terminan
-        # la lectura con Enter. Tambien se deja un temporizador corto para
-        # lectores configurados sin Enter.
-        self.entryNumTarjeta4.bind('<Return>', self._rfid_enter)
-        self.entryNumTarjeta4.bind('<KP_Enter>', self._rfid_enter)
-        self.entryNumTarjeta4.bind('<KeyRelease>', self._rfid_tecla)
-        self.entryNumTarjeta4.grid(column=1, row=2, padx=4, pady=4)
-        self.entryNumTarjeta4.focus()
-        self.labelMensaje=ttk.Label(
-            self.labelframe3,
-            text="Acerque tarjeta con el vehiculo presente"
+        encabezado = tk.Frame(self.pagina1, bg="#17365d", padx=24, pady=18)
+        encabezado.grid(row=0, column=0, sticky="ew")
+        encabezado.grid_columnconfigure(0, weight=1)
+        tk.Label(
+            encabezado,
+            text="BIENVENIDO(A) AL ESTACIONAMIENTO",
+            bg="#17365d",
+            fg="white",
+            font=("Arial", 30, "bold")
+        ).grid(row=0, column=0)
+        tk.Label(
+            encabezado,
+            text="ENTRADA",
+            bg="#17365d",
+            fg="#d9eaf7",
+            font=("Arial", 18, "bold")
+        ).grid(row=1, column=0, pady=(6, 0))
+
+        cuerpo = tk.Frame(self.pagina1, bg="#f4f6f8", padx=30, pady=22)
+        cuerpo.grid(row=1, column=0, sticky="nsew")
+        cuerpo.grid_columnconfigure(0, weight=1)
+        cuerpo.grid_rowconfigure(1, weight=1)
+
+        self.SenBol = tk.Label(
+            cuerpo,
+            text="ESPERE UN MOMENTO",
+            bg="white",
+            fg="#17365d",
+            font=("Arial", 30, "bold"),
+            relief="solid",
+            borderwidth=1,
+            padx=20,
+            pady=24
         )
-        self.labelMensaje.grid(column=2, row=2, padx=0, pady=0)
+        self.SenBol.grid(row=0, column=0, sticky="ew", pady=(0, 18))
+
+        estados = tk.Frame(cuerpo, bg="#f4f6f8")
+        estados.grid(row=1, column=0, sticky="nsew")
+        estados.grid_columnconfigure((0, 1, 2), weight=1)
+
+        self.loopDet = tk.Label(
+            estados, text="SIN AUTO", bg="#cfd4da", fg="#20252a",
+            font=("Arial", 20, "bold"), padx=12, pady=18
+        )
+        self.loopDet.grid(row=0, column=0, padx=6, sticky="ew")
+
+        self.BotDet = tk.Label(
+            estados, text="BOTÓN EN ESPERA", bg="#cfd4da", fg="#20252a",
+            font=("Arial", 20, "bold"), padx=12, pady=18
+        )
+        self.BotDet.grid(row=0, column=1, padx=6, sticky="ew")
+
+        self.SenBol2 = tk.Label(
+            estados, text="BOLETO EN ESPERA", bg="#cfd4da", fg="#20252a",
+            font=("Arial", 20, "bold"), padx=12, pady=18
+        )
+        self.SenBol2.grid(row=0, column=2, padx=6, sticky="ew")
+
+        reloj = tk.Frame(cuerpo, bg="#f4f6f8")
+        reloj.grid(row=2, column=0, pady=24)
+        self.mi_reloj = tk.Label(
+            reloj, text="00:00:00", bg="#f4f6f8", fg="#17202a",
+            font=("Arial", 62, "bold")
+        )
+        self.mi_reloj.grid(row=0, column=0)
+        self.Reloj = tk.Label(
+            reloj, text="", bg="#f4f6f8", fg="#5d6d7e",
+            font=("Arial", 24)
+        )
+        self.Reloj.grid(row=1, column=0)
+
+        # El lector RFID se comporta como teclado. El campo permanece discreto
+        # pero enfocado para conservar el acceso de pensionados.
+        pie = tk.Frame(self.pagina1, bg="#e8edf2", padx=20, pady=10)
+        pie.grid(row=2, column=0, sticky="ew")
+        pie.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            pie, text="PENSIONADOS: ACERQUE SU TARJETA",
+            bg="#e8edf2", fg="#34495e", font=("Arial", 13, "bold")
+        ).grid(row=0, column=0, padx=(0, 12))
+        self.entryNumTarjeta4 = tk.Entry(
+            pie, width=2, textvariable=self.NumTarjeta4,
+            bg="#e8edf2", fg="#e8edf2", insertbackground="#e8edf2",
+            relief="flat", highlightthickness=0
+        )
+        self.entryNumTarjeta4.bind("<Return>", self._rfid_enter)
+        self.entryNumTarjeta4.bind("<KP_Enter>", self._rfid_enter)
+        self.entryNumTarjeta4.bind("<KeyRelease>", self._rfid_tecla)
+        self.entryNumTarjeta4.grid(row=0, column=1, sticky="w")
+
+        # Controles de diagnóstico conservados sin mostrarlos al público.
+        self.labelframe1 = tk.Frame(self.pagina1)
+        self.entryMaxId = tk.Entry(
+            self.labelframe1, width=10, textvariable=self.MaxId, state="readonly"
+        )
+        self.entryPlaca = tk.Entry(
+            self.labelframe1, width=15, textvariable=self.Placa
+        )
+        self.labelMensaje = tk.Label(self.labelframe1, text="")
+        self.Bienvenida = tk.Label(self.labelframe1, text="BIENVENIDOS")
+
+        self.entryNumTarjeta4.focus_set()
 
     def _cancelar_rfid_pendiente(self):
         if self._rfid_after_id is not None:
@@ -218,21 +270,21 @@ class FormularioOperacion:
         global BanBoton, BanLoop, BanImpresion, BotonArmado
     
         if BanLoop == 1:
-            self.loopDet.config(text = "Hay auto", font=('Arial', 15), background = 'green')
+            self.loopDet.config(text = "Hay auto", font=('Arial', 20, 'bold'), background = 'green')
         else:
-            self.loopDet.config(text = ".", font=('Arial', 15), background = '#CCC') #'#CCC'
-            self.SenBol2.config(text = ".", font=('Arial', 15), background='#CCC')
-            self.SenBol.config(text = ".", font=('Arial', 15), background='#CCC')
+            self.loopDet.config(text = ".", font=('Arial', 20, 'bold'), background = '#CCC') #'#CCC'
+            self.SenBol2.config(text = ".", font=('Arial', 20, 'bold'), background='#CCC')
+            self.SenBol.config(text = ".", font=('Arial', 20, 'bold'), background='#CCC')
             BanImpresion = 1
 
         if BanBoton == 1:
-            self.BotDet.config(text = "presiono btn", font=('Arial', 15), background='#CCC') #'#CCC'
+            self.BotDet.config(text = "presiono btn", font=('Arial', 20, 'bold'), background='#CCC') #'#CCC'
             # Protección de arranque: un nivel bajo presente al iniciar no
             # cuenta como pulsación. Primero debe detectarse el botón suelto.
             if BotonArmado == 0:
                 self.BotDet.config(
                     text="SUELTE BOTON",
-                    font=('Arial', 15),
+                    font=('Arial', 20, 'bold'),
                     background='orange'
                 )
             # Nunca abrir ni imprimir si no se detecta un vehiculo.
@@ -240,7 +292,7 @@ class FormularioOperacion:
                 print('Boton ignorado: no hay auto')
                 self.BotDet.config(
                     text="SIN AUTO - BOTON IGNORADO",
-                    font=('Arial', 15),
+                    font=('Arial', 20, 'bold'),
                     background='orange'
                 )
                 BotonArmado = 0
@@ -254,23 +306,23 @@ class FormularioOperacion:
                     self._sensor_vio_boleto = False
                     self._inicio_espera_boleto = time.monotonic()
                     self.SenBol.config(text="2) TOME SU BOLETO",
-                                       font=('Arial', 15), background="orange")
+                                       font=('Arial', 20, 'bold'), background="orange")
                     print("Boleto impreso; esperando presencia y retiro")
                 except Exception:
                     BanImpresion = 1
                     self.SenBol.config(text="ERROR IMPRESION - BARRERA CERRADA",
-                                       font=('Arial', 15), background="red")
+                                       font=('Arial', 20, 'bold'), background="red")
                     traceback.print_exc()
             else:   
-                self.SenBol.config(text = "press btn sin impresion", font=('Arial', 15), background= "red") 
+                self.SenBol.config(text = "press btn sin impresion", font=('Arial', 20, 'bold'), background= "red") 
 
         else: 
             # El botón ya fue visto en reposo (HIGH); la próxima transición a
             # LOW será una pulsación real.
             BotonArmado = 1
-            self.BotDet.config(text = "solto btn", font=('Arial', 15), background='#CCC') #'#CCC'       
+            self.BotDet.config(text = "solto btn", font=('Arial', 20, 'bold'), background='#CCC') #'#CCC'       
             if not self._esperando_retiro:
-                self.SenBol.config(text = "", font=('Arial', 15), background="#CCC")
+                self.SenBol.config(text = "", font=('Arial', 20, 'bold'), background="#CCC")
             #if BanBoton == 1 and BanLoop==1:
            
 
@@ -282,22 +334,22 @@ class FormularioOperacion:
             if BanSenBoleto == 1:
                 self._sensor_vio_boleto = True
                 self.SenBol.config(text="2) TOME SU BOLETO",
-                                   font=('Arial', 15), background="orange")
+                                   font=('Arial', 20, 'bold'), background="orange")
             elif self._sensor_vio_boleto:
                 self._esperando_retiro = False
                 self._sensor_vio_boleto = False
                 if BanLoop == 1:
                     self.SenBol.config(text="3) AVANCE",
-                                       font=('Arial', 15), background="green")
+                                       font=('Arial', 20, 'bold'), background="green")
                     self._abrir_barrera()
                 else:
                     self.SenBol.config(text="SIN AUTO - BARRERA CERRADA",
-                                       font=('Arial', 15), background="red")
+                                       font=('Arial', 20, 'bold'), background="red")
                     print("Retiro confirmado sin automóvil: no se abre")
             elif time.monotonic() - self._inicio_espera_boleto >= tiempo_retiro_boleto:
                 self._esperando_retiro = False
                 self.SenBol.config(text="SENSOR SIN BOLETO - BARRERA CERRADA",
-                                   font=('Arial', 15), background="red")
+                                   font=('Arial', 20, 'bold'), background="red")
                 print("Tiempo agotado: no se confirmó la presencia del boleto")
 
         now =datetime.now() 
