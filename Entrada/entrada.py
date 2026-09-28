@@ -86,7 +86,9 @@ class FormularioOperacion:
         self.IntSenBoleto()
         self.check_inputs()
 
-        self.cuaderno1.grid(column=0, row=0, padx=5, pady=5)
+        self.ventana1.grid_rowconfigure(0, weight=1)
+        self.ventana1.grid_columnconfigure(0, weight=1)
+        self.cuaderno1.grid(column=0, row=0, sticky="nsew")
         self.ventana1.mainloop()
     ###########################Inicia Pagina1##########################
 # Funcion de lectura de las entradas
@@ -148,7 +150,8 @@ class FormularioOperacion:
 
         estados = tk.Frame(cuerpo, bg="#f4f6f8")
         estados.grid(row=1, column=0, sticky="nsew")
-        estados.grid_columnconfigure((0, 1, 2), weight=1)
+        for columna in range(3):
+            estados.grid_columnconfigure(columna, weight=1)
 
         self.loopDet = tk.Label(
             estados, text="SIN AUTO", bg="#cfd4da", fg="#20252a",
