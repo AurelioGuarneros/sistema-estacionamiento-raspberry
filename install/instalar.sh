@@ -325,13 +325,21 @@ instalar_raspberry() {
   instalar_dependencias_sistema
 
   getent group estacionamiento >/dev/null || groupadd --system estacionamiento
-  usermod -a -G estacionamiento,gpio,lp,dialout "$USUARIO_SERVICIO"
+  usermod -a -G estacionamiento,gpio,lp,plugdev,dialout "$USUARIO_SERVICIO"
   install -d -o root -g estacionamiento -m 0750 /etc/estacionamiento
   instalar_configuracion_privada
   configurar_impresora_punto
 
   install -d -o root -g estacionamiento -m 0755 /opt/estacionamiento
   copiar_punto /opt/estacionamiento "$PUNTO"
+  if [[ "$PUNTO" == "entrada" ]]; then
+    # La aplicación regenera este archivo en cada boleto. Debe pertenecer al
+    # usuario del escritorio para que el inicio gráfico pueda imprimir el QR.
+    touch /opt/estacionamiento/Entrada/reducida.png
+    chown "$USUARIO_SERVICIO:$USUARIO_SERVICIO" \
+      /opt/estacionamiento/Entrada/reducida.png
+    chmod 0664 /opt/estacionamiento/Entrada/reducida.png
+  fi
   python3 -m venv --system-site-packages /opt/estacionamiento/venv
   /opt/estacionamiento/venv/bin/pip install --upgrade pip
   /opt/estacionamiento/venv/bin/pip install -r /opt/estacionamiento/requirements.txt
