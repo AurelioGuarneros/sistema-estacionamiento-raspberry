@@ -4,13 +4,13 @@ from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.application import MIMEApplication
-from escpos.printer import Usb
 from zipfile import ZipFile, ZIP_DEFLATED
 from subprocess import run, CalledProcessError
 from os import path, getcwd, remove, listdir, makedirs
 from requests import get
 from requests.exceptions import RequestException
 from operacion_tpv import Operacion
+from impresora import crear_impresora
 
 dir_cortes = "Cortes"
 
@@ -369,8 +369,8 @@ def main() -> None:
         message_send_database = send_database()
         message_send_corte = send_corte()
 
-        # Instanciar el objeto Usb para imprimir el resultado
-        printer = Usb(0x04b8, 0x0e15, 0)
+        # Usar la misma impresora configurada para cobros y cortes.
+        printer = crear_impresora()
 
         # Alinea al centro el texto
         printer.set(align = "center")
@@ -388,4 +388,3 @@ def main() -> None:
         print(message_send_corte)
     except Exception as e:
         print(e)
-

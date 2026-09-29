@@ -20,6 +20,8 @@ SMTP_PASSWORD=""
 EMAIL_DATABASE=""
 EMAIL_CORTE=""
 EMAIL_NOTIFICACION=""
+PRINTER_MODE="usb"
+PRINTER_DEVICE="/dev/usb/lp0"
 PRINTER_VENDOR_ID="04b8"
 PRINTER_PRODUCT_ID="0e15"
 CONFIG_TEMP=""
@@ -50,6 +52,10 @@ validar_puerto() {
 
 validar_usb_id() {
   [[ "$1" =~ ^[0-9A-Fa-f]{4}$ ]]
+}
+
+validar_dispositivo_impresora() {
+  [[ "$1" =~ ^/dev/[A-Za-z0-9._/-]+$ ]]
 }
 
 validar_secreto_sql() {
@@ -172,19 +178,52 @@ recopilar_configuracion() {
     printf 'Se generó automáticamente una contraseña segura para MariaDB.\n'
     printf 'Se guardará en un archivo privado para configurar Entrada y Salida.\n'
 
-    local impresora_detectada
-    impresora_detectada="$(lsusb 2>/dev/null | awk '/Epson/ {print $6; exit}')"
-    if [[ "$impresora_detectada" =~ ^([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})$ ]]; then
+    local impresora_detectada opcion_impresora
+    if lsusb 2>/dev/null | grep -qi '0416:5011'; then
+      PRINTER_MODE="lp"
+      PRINTER_VENDOR_ID="0416"
+      PRINTER_PRODUCT_ID="5011"
+      printf 'Impresora POS80 detectada en %s.\n' "$PRINTER_DEVICE"
+    else
+      impresora_detectada="$(lsusb 2>/dev/null | awk '/Epson/ {print $6; exit}')"
+    fi
+    if [[ "${impresora_detectada:-}" =~ ^([0-9A-Fa-f]{4}):([0-9A-Fa-f]{4})$ ]]; then
       PRINTER_VENDOR_ID="${BASH_REMATCH[1]}"
       PRINTER_PRODUCT_ID="${BASH_REMATCH[2]}"
       printf 'Impresora USB detectada: %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
     fi
+
+    printf '\nSeleccione la impresora de la TPV:\n'
+    printf '  1) Epson por USB (VID/PID)\n'
+    printf '  2) POS80 mediante /dev/usb/lp0\n'
+    while true; do
+      if [[ "$PRINTER_MODE" == "lp" ]]; then
+        read -r -p "Opción [1-2] [2]: " opcion_impresora
+        opcion_impresora="${opcion_impresora:-2}"
+      else
+        read -r -p "Opción [1-2] [1]: " opcion_impresora
+        opcion_impresora="${opcion_impresora:-1}"
+      fi
+      case "$opcion_impresora" in
+        1) PRINTER_MODE="usb"; break ;;
+        2) PRINTER_MODE="lp"; break ;;
+        *) printf 'Opción inválida. Escriba 1 o 2.\n' >&2 ;;
+      esac
+    done
+
     preguntar_valor PRINTER_VENDOR_ID "ID fabricante USB de la impresora" "$PRINTER_VENDOR_ID"
     preguntar_valor PRINTER_PRODUCT_ID "ID producto USB de la impresora" "$PRINTER_PRODUCT_ID"
     validar_usb_id "$PRINTER_VENDOR_ID" && validar_usb_id "$PRINTER_PRODUCT_ID" || {
       printf 'Los identificadores USB deben tener exactamente cuatro dígitos hexadecimales.\n' >&2
       exit 2
     }
+    if [[ "$PRINTER_MODE" == "lp" ]]; then
+      preguntar_valor PRINTER_DEVICE "Dispositivo Linux de la impresora" "$PRINTER_DEVICE"
+      validar_dispositivo_impresora "$PRINTER_DEVICE" || {
+        printf 'Ruta de impresora inválida: %s\n' "$PRINTER_DEVICE" >&2
+        exit 2
+      }
+    fi
 
     printf '\nConfiguración de correo de TPV (puede dejarla vacía y completarla después).\n'
     preguntar_valor SMTP_HOST "Servidor SMTP" ""
@@ -215,7 +254,12 @@ mostrar_configuracion_recopilada() {
     printf '  SMTP:    %s:%s, origen %s\n' "$SMTP_HOST" "$SMTP_PORT" "$SMTP_USER"
   fi
   if [[ "$PUNTO" == "tpv" ]]; then
-    printf '  Impresora USB: %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+    if [[ "$PRINTER_MODE" == "lp" ]]; then
+      printf '  Impresora: POS80 %s (%s:%s)\n' \
+        "$PRINTER_DEVICE" "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+    else
+      printf '  Impresora: Epson USB %s:%s\n' "$PRINTER_VENDOR_ID" "$PRINTER_PRODUCT_ID"
+    fi
   fi
 }
 
@@ -244,6 +288,8 @@ crear_configuracion_temporal() {
     printf 'ESTACIONAMIENTO_EMAIL_DATABASE=%s\n' "$(escapar_valor_env "$EMAIL_DATABASE")"
     printf 'ESTACIONAMIENTO_EMAIL_CORTE=%s\n' "$(escapar_valor_env "$EMAIL_CORTE")"
     printf 'ESTACIONAMIENTO_EMAIL_NOTIFICACION=%s\n' "$(escapar_valor_env "$EMAIL_NOTIFICACION")"
+    printf 'ESTACIONAMIENTO_PRINTER_MODE=%s\n' "$(escapar_valor_env "$PRINTER_MODE")"
+    printf 'ESTACIONAMIENTO_PRINTER_DEVICE=%s\n' "$(escapar_valor_env "$PRINTER_DEVICE")"
     printf 'ESTACIONAMIENTO_PRINTER_VENDOR_ID=%s\n' "$(escapar_valor_env "$PRINTER_VENDOR_ID")"
     printf 'ESTACIONAMIENTO_PRINTER_PRODUCT_ID=%s\n' "$(escapar_valor_env "$PRINTER_PRODUCT_ID")"
     printf 'DISPLAY=":0"\n'

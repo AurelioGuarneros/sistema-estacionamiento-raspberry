@@ -37,6 +37,7 @@ En Raspberry Pi OS Trixie, el asistente también solicita y prepara:
 - puerta de enlace y DNS;
 - nombre, usuario y contraseña privada de MariaDB;
 - servidor, puerto, TLS, origen y destinos de correo cuando el punto es TPV.
+- impresora Epson por VID/PID USB o impresora POS80 mediante `/dev/usb/lp0`.
 
 La nueva IP no se activa durante la instalación; queda programada para el
 siguiente reinicio, evitando cortar una sesión SSH o VNC a la mitad.
@@ -106,3 +107,26 @@ sudo systemctl restart estacionamiento-entrada.service
 ```
 
 Cambie `entrada` por `tpv` o `salida`, según la máquina.
+
+## Cambiar la impresora de la TPV
+
+La selección se guarda en `/etc/estacionamiento/config.env`. Para una Epson
+con acceso PyUSB:
+
+```bash
+ESTACIONAMIENTO_PRINTER_MODE=usb
+ESTACIONAMIENTO_PRINTER_VENDOR_ID=04b8
+ESTACIONAMIENTO_PRINTER_PRODUCT_ID=0e15
+```
+
+Para la impresora térmica POS80 `0416:5011` detectada como `usblp`:
+
+```bash
+ESTACIONAMIENTO_PRINTER_MODE=lp
+ESTACIONAMIENTO_PRINTER_DEVICE=/dev/usb/lp0
+ESTACIONAMIENTO_PRINTER_VENDOR_ID=0416
+ESTACIONAMIENTO_PRINTER_PRODUCT_ID=5011
+```
+
+Después de cambiarla, reinicie la aplicación TPV o cierre y vuelva a abrir su
+sesión gráfica.

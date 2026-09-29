@@ -2,7 +2,6 @@ import os
 from datetime import datetime, date, timedelta
 from tkinter import messagebox as mb
 
-from escpos.printer import Usb
 from escpos.exceptions import USBNotFoundError
 
 import tkinter as tk
@@ -32,18 +31,10 @@ from controller_email import main, send_other_corte
 from threading import Thread
 from os import path, listdir, makedirs
 from controller_email import ToolsEmail
+from impresora import crear_impresora
 tools = ToolsEmail()
 
 ###--###
-printer_vendor_id = int(os.environ.get("ESTACIONAMIENTO_PRINTER_VENDOR_ID", "04b8"), 16)
-printer_product_id = int(os.environ.get("ESTACIONAMIENTO_PRINTER_PRODUCT_ID", "0e15"), 16)
-data_rinter = (printer_vendor_id, printer_product_id, 0)
-
-
-def crear_impresora():
-    """Crea la impresora USB configurada para esta TPV."""
-    return Usb(printer_vendor_id, printer_product_id, 0)
-
 contraseña_pensionados = os.environ.get("ESTACIONAMIENTO_PASSWORD_PENSIONADOS", "")
 
 valor_tarjeta = 116
