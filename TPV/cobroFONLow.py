@@ -32,7 +32,17 @@ from threading import Thread
 from os import path, listdir, makedirs
 from controller_email import ToolsEmail
 from impresora import crear_impresora
+from configuracion_tpv import (
+    AZUL,
+    AZUL_CLARO,
+    FONDO,
+    ROJO,
+    VentanaConfiguracion,
+    cargar_configuracion,
+)
 tools = ToolsEmail()
+
+configuracion_tpv = cargar_configuracion()
 
 ###--###
 contraseña_pensionados = os.environ.get("ESTACIONAMIENTO_PASSWORD_PENSIONADOS", "")
@@ -46,7 +56,7 @@ AutoA = "AutoA.png"
 
 qr_imagen = "reducida.png"
 PROMOCIONES = ("Promo1", "BA BODEGA AURRERA")
-nombre_estacionamiento = 'Hidalgo 401'
+nombre_estacionamiento = configuracion_tpv["general"]["nombre_estacionamiento"]
 
 estilo = ('Arial', 12)
 font_entrada = ('Arial', 20)
@@ -55,15 +65,15 @@ font_mensaje = ('Arial', 40)
 font_reloj = ('Arial', 65)
 font_cancel = ('Arial', 15)
 
-button_color = "#062546"#"#39acec""#6264d4"
+button_color = AZUL
 button_letters_color = "white" 
 
 from controller_email import main
 
-show_clock = False
+show_clock = configuracion_tpv["general"]["mostrar_reloj"]
 send_data = True
-pantalla_completa = True
-required_plate = False
+pantalla_completa = configuracion_tpv["general"]["pantalla_completa"]
+required_plate = configuracion_tpv["general"]["placa_obligatoria"]
 
 class FormularioOperacion:
     def __init__(self):
@@ -76,20 +86,47 @@ class FormularioOperacion:
         self.DB=Operacion()
         self.root=tk.Tk()
         self.root.title(f"{nombre_estacionamiento} COBRO")
+        self.root.configure(bg=FONDO)
+        self.root.bind("<F11>", self._alternar_pantalla_completa)
+        self.root.bind("<Escape>", self._salir_pantalla_completa)
 
         if pantalla_completa:
-            # Obtener el ancho y alto de la pantalla
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
+            self.root.attributes("-fullscreen", True)
 
-            # Configura la ventana para que ocupe toda la pantalla
-            self.root.geometry(f"{screen_width}x{screen_height}+0+0")
+        encabezado = tk.Frame(self.root, bg=AZUL, padx=22, pady=13)
+        encabezado.pack(fill="x")
+        self.titulo_principal = tk.Label(
+            encabezado, text=nombre_estacionamiento.upper(), bg=AZUL, fg="white",
+            font=("Arial", 23, "bold")
+        )
+        self.titulo_principal.pack(side="left")
+        tk.Label(
+            encabezado, text="PUNTO DE VENTA", bg=AZUL, fg=AZUL_CLARO,
+            font=("Arial", 13, "bold")
+        ).pack(side="left", padx=18, pady=(6, 0))
+        tk.Button(
+            encabezado, text="CERRAR", command=self.Cerrar_Programa,
+            bg=ROJO, fg="white", activebackground="#8c1d18",
+            activeforeground="white", font=("Arial", 12, "bold"),
+            padx=18, pady=7, relief="flat"
+        ).pack(side="right")
+        tk.Button(
+            encabezado, text="CONFIGURACION", command=self.Abrir_Configuracion,
+            bg="#345b84", fg="white", activebackground="#294a6d",
+            activeforeground="white", font=("Arial", 12, "bold"),
+            padx=18, pady=7, relief="flat"
+        ).pack(side="right", padx=(0, 10))
 
         # Colocar el LabelFrame en las coordenadas calculadas
-        principal = tk.LabelFrame(self.root)
-        principal.pack(expand=True, padx=5, pady=5, anchor='n')
+        principal = tk.Frame(self.root, bg=FONDO)
+        principal.pack(fill="both", expand=True, padx=12, pady=10)
 
-        self.cuaderno1 = ttk.Notebook(principal)
+        estilo_tpv = ttk.Style(self.root)
+        estilo_tpv.configure(
+            "TPV.TNotebook.Tab", font=("Arial", 12, "bold"), padding=(18, 9)
+        )
+
+        self.cuaderno1 = ttk.Notebook(principal, style="TPV.TNotebook")
         # Asociar el evento <<NotebookTabChanged>> a la función on_tab_changed
         self.cuaderno1.bind("<<NotebookTabChanged>>", self.on_tab_changed)
 
@@ -99,11 +136,34 @@ class FormularioOperacion:
         self.consulta_por_folio()
         self.listado_completo()
         self.interface_pensionados()
-        self.cuaderno1.grid(column=0, row=0, padx=2, pady=5)
+        self.cuaderno1.pack(fill="both", expand=True)
         if show_clock:
             self.reloj = RelojAnalogico()
 
         self.root.mainloop()
+
+    def _alternar_pantalla_completa(self, _event=None):
+        estado = bool(self.root.attributes("-fullscreen"))
+        self.root.attributes("-fullscreen", not estado)
+
+    def _salir_pantalla_completa(self, _event=None):
+        self.root.attributes("-fullscreen", False)
+
+    def Abrir_Configuracion(self):
+        VentanaConfiguracion(self.root, self._aplicar_configuracion)
+
+    def _aplicar_configuracion(self, configuracion):
+        global configuracion_tpv, nombre_estacionamiento
+        global pantalla_completa, show_clock, required_plate
+        configuracion_tpv = configuracion
+        general = configuracion["general"]
+        nombre_estacionamiento = general["nombre_estacionamiento"]
+        pantalla_completa = general["pantalla_completa"]
+        show_clock = general["mostrar_reloj"]
+        required_plate = general["placa_obligatoria"]
+        self.root.title(f"{nombre_estacionamiento} COBRO")
+        self.titulo_principal.configure(text=nombre_estacionamiento.upper())
+        self.root.attributes("-fullscreen", pantalla_completa)
 
 
     def ExpedirRfid(self):
@@ -625,6 +685,24 @@ class FormularioOperacion:
                 24: 225,
             }
             return tarifas_ba.get(horas_cobradas)
+
+        # La tarifa general se obtiene del panel de configuracion. Los valores
+        # predeterminados reproducen exactamente la tabla anterior ($10/hora).
+        datos_tarifa = configuracion_tpv["tarifa"]
+        if datos_tarifa.get("tipo") == "avanzada":
+            horas_completas, minutos_restantes = divmod(minutos_totales, 60)
+            horas_completas = min(horas_completas, 24)
+            if minutos_restantes == 0:
+                fraccion = "hora"
+            elif minutos_restantes <= 15:
+                fraccion = "1"
+            elif minutos_restantes <= 30:
+                fraccion = "2"
+            else:
+                fraccion = "3"
+            fila = datos_tarifa["personalizada"].get(str(horas_completas))
+            if fila:
+                return fila.get(fraccion)
 
         # Público en general.
         tarifas_normal = {
@@ -1977,6 +2055,11 @@ class FormularioOperacion:
         self.Cerrar_Programa()
 
     def Cerrar_Programa(self):
+        confirmar = configuracion_tpv["funcionamiento"].get("confirmar_cierre", True)
+        if confirmar and not mb.askyesno(
+            "Cerrar TPV", "¿Desea cerrar el punto de venta?", parent=self.root
+        ):
+            return
         self.root.destroy()
 
     def Reporte_Corte(self):
