@@ -152,7 +152,7 @@ confirmar_instalacion() {
 
 configurar_mariadb_tpv() {
   local cantidad_tablas patron_red archivo_temporal
-  [[ "$PUNTO" == "tpv" ]] || return
+  [[ "$PUNTO" == "tpv" ]] || return 0
 
   systemctl enable --now mariadb.service
   archivo_temporal="$(mktemp)"
@@ -191,7 +191,7 @@ configurar_mariadb_tpv() {
 
 configurar_impresora_tpv() {
   local regla_temporal
-  [[ "$PUNTO" == "tpv" ]] || return
+  [[ "$PUNTO" == "tpv" ]] || return 0
   regla_temporal="$(mktemp)"
   printf 'SUBSYSTEM=="usb", ATTR{idVendor}=="%s", ATTR{idProduct}=="%s", MODE="0660", GROUP="lp"\n' \
     "${PRINTER_VENDOR_ID,,}" "${PRINTER_PRODUCT_ID,,}" > "$regla_temporal"
