@@ -155,7 +155,7 @@ class FormularioOperacion:
         self.pagina2 = ttk.Frame(self.cuaderno1)
         self.cuaderno1.add(self.pagina2, text="  COBRO Y TICKETS  ")
         self.pagina_casos = ttk.Frame(self.cuaderno1)
-        self.cuaderno1.add(self.pagina_casos, text="  CASOS ESPECIALES  ")
+        self.cuaderno1.add(self.pagina_casos, text="  BOLETO PERDIDO  ")
         self.consulta_por_folio()
         self.ExpedirRfid()
         self.check_inputs()
@@ -481,13 +481,12 @@ class FormularioOperacion:
         self.pagina_casos.grid_columnconfigure(0, weight=1)
         self.pagina_casos.grid_rowconfigure(0, weight=1)
         self.labelPerdido_principal=tk.LabelFrame(
-            self.pagina_casos, text="  BOLETOS ESPECIALES Y VEHICULOS DENTRO  "
+            self.pagina_casos, text="  BOLETO PERDIDO O DAÑADO  "
         )
         self.labelPerdido_principal.grid(
             column=0, row=0, padx=14, pady=14, sticky=tk.NSEW
         )
-        self.labelPerdido_principal.grid_columnconfigure(0, weight=3)
-        self.labelPerdido_principal.grid_columnconfigure(1, weight=2)
+        self.labelPerdido_principal.grid_columnconfigure(0, weight=1)
 
         self.labelPerdido=tk.LabelFrame(self.labelPerdido_principal, text="  Boleto perdido o danado  ")
         self.labelPerdido.grid(column=0,row=0,padx=(4, 8), pady=4, sticky=tk.EW)
@@ -521,8 +520,8 @@ class FormularioOperacion:
         self.boton3.grid(column=2, row=1, sticky=tk.EW, padx=3, pady=5)
 
 
-        self.labelPerdido2=tk.LabelFrame(self.labelPerdido_principal, text="  Vehiculos dentro  ")
-        self.labelPerdido2.grid(column=1,row=0,padx=(8, 4), pady=4, sticky=tk.EW)
+        self.labelPerdido2=tk.LabelFrame(self.labelframe3_principal, text="  Vehiculos dentro  ")
+        self.labelPerdido2.grid(column=0,row=4,padx=4, pady=4, sticky=tk.EW)
 
         self.boton2=tk.Button(self.labelPerdido2, text="B./SIN cobro", command=self.BoletoDentro, width=10, height=2, anchor="center", background=button_color, fg=button_letters_color)
         self.boton2.grid(column=0, row=0)
