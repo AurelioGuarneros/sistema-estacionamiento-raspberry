@@ -24,6 +24,7 @@ PRINTER_MODE="usb"
 PRINTER_DEVICE="/dev/usb/lp0"
 PRINTER_VENDOR_ID="04b8"
 PRINTER_PRODUCT_ID="0e15"
+PASSWORD_CONFIGURACION=""
 CONFIG_TEMP=""
 
 validar_ipv4() {
@@ -118,6 +119,28 @@ preguntar_secreto() {
   done
 }
 
+preguntar_password_local() {
+  local variable="$1"
+  local texto="$2"
+  local valor confirmacion
+  while true; do
+    read -r -s -p "$texto: " valor
+    printf '\n'
+    if ((${#valor} < 4 || ${#valor} > 64)); then
+      printf 'Use una contraseña de 4 a 64 caracteres.\n' >&2
+      continue
+    fi
+    read -r -s -p "Repita la contraseña: " confirmacion
+    printf '\n'
+    if [[ "$valor" != "$confirmacion" ]]; then
+      printf 'Las contraseñas no coinciden.\n' >&2
+      continue
+    fi
+    printf -v "$variable" '%s' "$valor"
+    return
+  done
+}
+
 proponer_ip() {
   local base="$1"
   local ultimo
@@ -177,6 +200,8 @@ recopilar_configuracion() {
     DB_PASSWORD="$password_generada"
     printf 'Se generó automáticamente una contraseña segura para MariaDB.\n'
     printf 'Se guardará en un archivo privado para configurar Entrada y Salida.\n'
+    preguntar_password_local PASSWORD_CONFIGURACION \
+      "Contraseña para abrir la configuración de la TPV"
 
     local impresora_detectada opcion_impresora
     if lsusb 2>/dev/null | grep -qi '0416:5011'; then
@@ -292,6 +317,10 @@ crear_configuracion_temporal() {
     printf 'ESTACIONAMIENTO_PRINTER_DEVICE=%s\n' "$(escapar_valor_env "$PRINTER_DEVICE")"
     printf 'ESTACIONAMIENTO_PRINTER_VENDOR_ID=%s\n' "$(escapar_valor_env "$PRINTER_VENDOR_ID")"
     printf 'ESTACIONAMIENTO_PRINTER_PRODUCT_ID=%s\n' "$(escapar_valor_env "$PRINTER_PRODUCT_ID")"
+    if [[ "$PUNTO" == "tpv" ]]; then
+      printf 'ESTACIONAMIENTO_PASSWORD_CONFIGURACION=%s\n' \
+        "$(escapar_valor_env "$PASSWORD_CONFIGURACION")"
+    fi
     printf 'DISPLAY=":0"\n'
   } > "$CONFIG_TEMP"
 }
