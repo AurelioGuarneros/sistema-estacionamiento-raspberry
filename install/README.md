@@ -108,6 +108,10 @@ sudo systemctl restart estacionamiento-entrada.service
 
 Cambie `entrada` por `tpv` o `salida`, según la máquina.
 
+En la instalación de la TPV también se solicita la contraseña que protege el
+botón **CONFIGURACION**. Se guarda únicamente en el archivo privado como
+`ESTACIONAMIENTO_PASSWORD_CONFIGURACION`.
+
 ## Cambiar la impresora de la TPV
 
 La selección se guarda en `/etc/estacionamiento/config.env`. Para una Epson
