@@ -56,19 +56,18 @@ class FormularioOperacion:
         #creamos un objeto que esta en el archivo operacion dentro la clase Operacion
         self.operacion1=operacion.Operacion()
         self.ventana1=tk.Tk()
-        self.ventana1.title("SALIDA PUNTOSANTAROSA")
-        self.ventana1.configure(bg = 'blue')
-        self.cuaderno1 = ttk.Notebook(self.ventana1)
-        self.cuaderno1.config(cursor="")         # Tipo de cursor
-        self.ExpedirRfid()
-        self.consulta_por_folio()
-        self.check_inputs()
+        self.ventana1.title("SALIDA DEL ESTACIONAMIENTO")
+        self.ventana1.configure(bg="#081f3d")
+        self.ventana1.attributes("-fullscreen", True)
+        self.ventana1.bind(
+            "<Escape>",
+            lambda _event: self.ventana1.attributes("-fullscreen", False)
+        )
+        self.pantalla_salida_moderna()
         #self.botonpImprimir()
         #self.calcular_cambio()
         self.IntBoton()
         self.Intloop()
-        self.listado_completo()
-        self.cuaderno1.grid(column=0, row=0, padx=5, pady=5)
         self.ventana1.mainloop()
     ###########################Inicia Pagina1##########################
 # Funcion de lectura de las entradas
@@ -376,6 +375,204 @@ class FormularioOperacion:
                     self.entryNumTarjeta4.focus()                
                 
 
+    def pantalla_salida_moderna(self):
+        """Pantalla publica de salida, optimizada para verse desde el auto."""
+        azul="#081f3d"
+        azul_claro="#123b67"
+        blanco="#ffffff"
+        verde="#178b55"
+        gris="#eaf0f5"
+
+        nombre=os.environ.get(
+            "ESTACIONAMIENTO_NOMBRE",
+            "CHAPULTEPEC"
+        ).strip() or "CHAPULTEPEC"
+        anuncio_titulo=os.environ.get(
+            "ESTACIONAMIENTO_PUBLICIDAD_TITULO",
+            "ESPACIO PUBLICITARIO"
+        )
+        anuncio_mensaje=os.environ.get(
+            "ESTACIONAMIENTO_PUBLICIDAD_MENSAJE",
+            "Gracias por su visita"
+        )
+
+        self.ventana1.grid_columnconfigure(0, weight=1)
+        self.ventana1.grid_rowconfigure(1, weight=1)
+
+        encabezado=tk.Frame(self.ventana1, bg=azul, padx=30, pady=18)
+        encabezado.grid(column=0, row=0, sticky="ew")
+        encabezado.grid_columnconfigure(1, weight=1)
+        tk.Label(
+            encabezado, text=nombre.upper(), bg=azul, fg=blanco,
+            font=("Arial", 30, "bold")
+        ).grid(column=0, row=0, sticky="w")
+        tk.Label(
+            encabezado, text="SALIDA", bg=azul, fg="#9fd2ff",
+            font=("Arial", 20, "bold")
+        ).grid(column=1, row=0, padx=24, sticky="w")
+        self.reloj_salida=tk.Label(
+            encabezado, text="", bg=azul, fg=blanco,
+            font=("Arial", 16, "bold")
+        )
+        self.reloj_salida.grid(column=2, row=0, sticky="e")
+
+        contenido=tk.Frame(self.ventana1, bg=gris, padx=20, pady=20)
+        contenido.grid(column=0, row=1, sticky="nsew")
+        contenido.grid_columnconfigure(0, weight=3)
+        contenido.grid_columnconfigure(1, weight=2)
+        contenido.grid_rowconfigure(0, weight=1)
+
+        operacion=tk.Frame(
+            contenido, bg=blanco, highlightbackground="#c9d6e2",
+            highlightthickness=1, padx=28, pady=24
+        )
+        operacion.grid(column=0, row=0, padx=(0, 10), sticky="nsew")
+        operacion.grid_columnconfigure(0, weight=1)
+        operacion.grid_rowconfigure(2, weight=1)
+
+        tk.Label(
+            operacion, text="ESCANEE SU BOLETO O TARJETA",
+            bg=blanco, fg=azul, font=("Arial", 22, "bold")
+        ).grid(column=0, row=0, pady=(0, 12))
+
+        self.folio=tk.StringVar()
+        self.entryfolio=tk.Entry(
+            operacion, textvariable=self.folio, justify="center",
+            font=("Arial", 25, "bold"), relief="solid", bd=1,
+            highlightthickness=2, highlightcolor="#2384c6",
+            highlightbackground="#9eb4c8"
+        )
+        self.entryfolio.bind('<Return>', self.consultar)
+        self.entryfolio.grid(column=0, row=1, sticky="ew", padx=45, pady=(0, 18))
+
+        self.descripcion=tk.StringVar(value="LISTO PARA RECIBIR SU BOLETO")
+        self.mensaje_salida=tk.Label(
+            operacion, textvariable=self.descripcion, bg=azul_claro,
+            fg=blanco, font=("Arial", 29, "bold"),
+            wraplength=680, justify="center", padx=22, pady=28
+        )
+        self.mensaje_salida.grid(column=0, row=2, sticky="nsew")
+
+        self.label15=tk.Label(
+            operacion, text="Acerque el codigo QR al lector",
+            bg=blanco, fg="#49657f", font=("Arial", 15, "bold"),
+            wraplength=680, justify="center"
+        )
+        self.label15.grid(column=0, row=3, sticky="ew", pady=(15, 5))
+
+        pensionados=tk.LabelFrame(
+            operacion, text="  SALIDA DE PENSIONADOS  ", bg=blanco,
+            fg=azul, font=("Arial", 12, "bold"), padx=12, pady=8
+        )
+        pensionados.grid(column=0, row=4, pady=(12, 0))
+        tk.Label(
+            pensionados, text="Tarjeta RFID", bg=blanco, fg=azul,
+            font=("Arial", 12, "bold")
+        ).grid(column=0, row=0, padx=8)
+        self.NumTarjeta2=tk.StringVar()
+        self.entryNumTarjeta2=tk.Entry(
+            pensionados, width=18, textvariable=self.NumTarjeta2,
+            font=("Arial", 15), justify="center"
+        )
+        self.entryNumTarjeta2.grid(column=1, row=0, padx=8)
+        self.botonPensinados=tk.Button(
+            pensionados, text="AUTORIZAR SALIDA",
+            command=self._autorizar_pensionado_manual, bg=verde, fg=blanco,
+            activebackground="#106b40", activeforeground=blanco,
+            font=("Arial", 11, "bold"), relief="flat", padx=12, pady=7
+        )
+        self.botonPensinados.grid(column=2, row=0, padx=8)
+
+        publicidad=tk.Frame(
+            contenido, bg=azul, highlightbackground=azul,
+            highlightthickness=1, padx=24, pady=24
+        )
+        publicidad.grid(column=1, row=0, padx=(10, 0), sticky="nsew")
+        publicidad.grid_columnconfigure(0, weight=1)
+        publicidad.grid_rowconfigure(1, weight=1)
+        tk.Label(
+            publicidad, text=anuncio_titulo.upper(), bg=azul,
+            fg="#9fd2ff", font=("Arial", 18, "bold"),
+            wraplength=390, justify="center"
+        ).grid(column=0, row=0, sticky="ew", pady=(10, 18))
+        tk.Label(
+            publicidad, text=anuncio_mensaje, bg=azul, fg=blanco,
+            font=("Arial", 28, "bold"), wraplength=390,
+            justify="center", padx=12, pady=20
+        ).grid(column=0, row=1, sticky="nsew")
+        tk.Label(
+            publicidad, text="ANUNCIE SU NEGOCIO AQUI",
+            bg="#f2b705", fg=azul, font=("Arial", 14, "bold"),
+            padx=12, pady=12
+        ).grid(column=0, row=2, sticky="ew", pady=(18, 8))
+
+        # Variables y controles heredados que siguen usando las funciones de
+        # validacion, promociones y diagnostico, sin mostrarlos al conductor.
+        oculto=tk.Frame(self.ventana1)
+        self.precio=tk.StringVar()
+        self.copia=tk.StringVar()
+        self.ffeecha=tk.StringVar()
+        self.importe=tk.StringVar()
+        self.promo=tk.StringVar()
+        self.PrTi=tk.StringVar()
+        self.PonerFOLIO=tk.StringVar()
+        self.cuantopagasen=tk.StringVar()
+        self.elimportees=tk.StringVar()
+        self.elcambioes=tk.StringVar()
+        self.entrydescripcion=tk.Entry(oculto, textvariable=self.descripcion)
+        self.entryprecio=tk.Entry(oculto, textvariable=self.precio)
+        self.entrycopia=tk.Entry(oculto, textvariable=self.copia)
+        self.entryffeecha=tk.Entry(oculto, textvariable=self.ffeecha)
+        self.entryimporte=tk.Entry(oculto, textvariable=self.importe)
+        self.entrypromo=tk.Entry(oculto, textvariable=self.promo)
+        self.entryPrTi=tk.Entry(oculto, textvariable=self.PrTi)
+        self.entryPonerFOLIO=tk.Entry(oculto, textvariable=self.PonerFOLIO)
+        self.entrycuantopagasen=tk.Entry(oculto, textvariable=self.cuantopagasen)
+        self.entryelimportees=tk.Entry(oculto, textvariable=self.elimportees)
+        self.entryelcambioes=tk.Entry(oculto, textvariable=self.elcambioes)
+        self.scrolledtxt=st.ScrolledText(oculto, width=1, height=1)
+        self.label9=tk.Label(oculto)
+        self.label11=tk.Label(oculto)
+        self.label12=tk.Label(oculto)
+        self.label7=tk.Label(oculto)
+        self.label8=tk.Label(oculto)
+        self.bcambio=tk.Button(oculto, command=self.calcular_cambio)
+        self.labelPensionado=oculto
+
+        self.descripcion.trace_add("write", self._actualizar_estado_salida)
+        self.entryfolio.focus_set()
+        self._actualizar_reloj_salida()
+
+    def _actualizar_reloj_salida(self):
+        self.reloj_salida.configure(
+            text=datetime.now().strftime("%d-%m-%Y  %H:%M")
+        )
+        self.ventana1.after(1000, self._actualizar_reloj_salida)
+
+    def _autorizar_pensionado_manual(self):
+        self.folio.set(self.NumTarjeta2.get().strip())
+        self.PensionadosOut()
+        self.NumTarjeta2.set("")
+        self.entryfolio.focus_set()
+
+    def _actualizar_estado_salida(self, *_args):
+        mensaje=self.descripcion.get().strip()
+        texto=mensaje.lower()
+        if not mensaje:
+            color="#123b67"
+        elif any(palabra in texto for palabra in (
+            "abre barrera", "autoriz", "gracias", "bienvenido"
+        )):
+            color="#178b55"
+        elif any(palabra in texto for palabra in (
+            "no pagado", "vencida", "utilizado", "invalida", "error",
+            "no existe", "ya salio", "sin vigencia", "no hay"
+        )):
+            color="#b3261e"
+        else:
+            color="#c47b00"
+        self.mensaje_salida.configure(bg=color)
+
 #########################fin de pagina1 inicio pagina2#########################
     def consulta_por_folio(self):
         self.pagina2 = ttk.Frame(self.cuaderno1)
@@ -601,7 +798,7 @@ class FormularioOperacion:
                 if fecha_salida == None:
                    print("Boleto No Pagado")
                    ### Label con mensaje de Tolerancia Vencida, No abre Barrera
-                   self.descripcion.set('Boleto No Pagado')
+                   self.descripcion.set('BOLETO NO PAGADO\nACUDA A CAJA')
                    self.precio.set('')
                    self.folio.set("")
                    self.entryfolio.focus()
@@ -625,7 +822,7 @@ class FormularioOperacion:
                             60
                         )
                         mensaje=(
-                            'Tolerancia vencida: '
+                            'TOLERANCIA VENCIDA - ACUDA A CAJA\n'
                             f'{minutos_vencidos:02d}:{segundos_vencidos:02d} '
                             'desde el pago'
                         )
@@ -661,7 +858,7 @@ class FormularioOperacion:
                         time.sleep (3)
                         io.output(barrera,0)
                         self.descripcion.set(
-                            'Abre Barrera - restan '+tiempo_restante
+                            'GRACIAS POR SU VISITA\nBARRERA ABIERTA'
                         )
                         self.label15.configure(
                             text='Tolerancia válida: restan '+tiempo_restante
@@ -818,7 +1015,9 @@ class FormularioOperacion:
                 print("No se autorizo: no existe movimiento abierto o ya salio")
                 return False
 
-            self.descripcion.set('Abre Barrera - estancia '+tiempo_total)
+            self.descripcion.set(
+                'PENSIONADO AUTORIZADO\nBUEN VIAJE - BARRERA ABIERTA'
+            )
             print(
                 "RFID autorizado:", tarjeta,
                 "estancia:", tiempo_total,
