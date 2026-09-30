@@ -67,6 +67,12 @@ font_cancel = ('Arial', 15)
 
 button_color = AZUL
 button_letters_color = "white" 
+VERDE = "#16845b"
+VERDE_OSCURO = "#0f6846"
+TEXTO = "#24344d"
+BORDE = "#d9e2ec"
+SUPERFICIE = "#ffffff"
+SUPERFICIE_SUAVE = "#f4f7fb"
 
 from controller_email import main
 
@@ -87,6 +93,7 @@ class FormularioOperacion:
         self.root=tk.Tk()
         self.root.title(f"{nombre_estacionamiento} COBRO")
         self.root.configure(bg=FONDO)
+        self.root.minsize(1180, 700)
         self.root.bind("<F11>", self._alternar_pantalla_completa)
         self.root.bind("<Escape>", self._salir_pantalla_completa)
 
@@ -119,11 +126,19 @@ class FormularioOperacion:
 
         # Colocar el LabelFrame en las coordenadas calculadas
         principal = tk.Frame(self.root, bg=FONDO)
-        principal.pack(fill="both", expand=True, padx=12, pady=10)
+        principal.pack(fill="both", expand=True, padx=18, pady=16)
 
         estilo_tpv = ttk.Style(self.root)
+        estilo_tpv.theme_use("clam")
+        estilo_tpv.configure("TPV.TNotebook", background=FONDO, borderwidth=0)
         estilo_tpv.configure(
-            "TPV.TNotebook.Tab", font=("Arial", 12, "bold"), padding=(18, 9)
+            "TPV.TNotebook.Tab", background="#dfe8f2", foreground=AZUL,
+            font=("Arial", 12, "bold"), padding=(20, 11), borderwidth=0
+        )
+        estilo_tpv.map(
+            "TPV.TNotebook.Tab",
+            background=[("selected", "white"), ("active", AZUL_CLARO)],
+            foreground=[("selected", AZUL)]
         )
 
         self.cuaderno1 = ttk.Notebook(principal, style="TPV.TNotebook")
@@ -137,6 +152,7 @@ class FormularioOperacion:
         self.listado_completo()
         self.interface_pensionados()
         self.cuaderno1.pack(fill="both", expand=True)
+        self._modernizar_pantalla_principal()
         if show_clock:
             self.reloj = RelojAnalogico()
 
@@ -164,6 +180,77 @@ class FormularioOperacion:
         self.root.title(f"{nombre_estacionamiento} COBRO")
         self.titulo_principal.configure(text=nombre_estacionamiento.upper())
         self.root.attributes("-fullscreen", pantalla_completa)
+
+    def _modernizar_pantalla_principal(self):
+        """Aplica una presentacion uniforme sin cambiar la logica operativa."""
+        estilo_tpv = ttk.Style(self.root)
+        estilo_tpv.configure("TPV.TFrame", background=FONDO)
+        for pestana in self.cuaderno1.winfo_children():
+            try:
+                pestana.configure(style="TPV.TFrame")
+            except tk.TclError:
+                pass
+            self._estilizar_contenedor(pestana)
+
+        if hasattr(self, "IImporte"):
+            self.IImporte.configure(
+                bg=AZUL_CLARO, fg=AZUL, font=("Arial", 48, "bold"),
+                relief="flat", padx=18, pady=8
+            )
+        if hasattr(self, "entryfolio"):
+            self.entryfolio.configure(
+                font=("Arial", 18, "bold"), width=18, relief="solid",
+                bd=1, highlightthickness=1, highlightbackground=BORDE
+            )
+        if hasattr(self, "entrypromo"):
+            self.entrypromo.configure(font=("Arial", 13), relief="solid", bd=1)
+        if hasattr(self, "entrycuantopagasen"):
+            self.entrycuantopagasen.configure(
+                font=("Arial", 18, "bold"), relief="solid", bd=1
+            )
+        if hasattr(self, "bcambio"):
+            self.bcambio.configure(
+                text="COBRAR E IMPRIMIR", bg=VERDE, activebackground=VERDE_OSCURO,
+                fg="white", activeforeground="white", font=("Arial", 13, "bold"),
+                width=20, height=2, relief="flat", cursor="hand2"
+            )
+
+    def _estilizar_contenedor(self, contenedor):
+        """Da apariencia de tarjetas a los controles Tk existentes."""
+        for control in contenedor.winfo_children():
+            try:
+                if isinstance(control, tk.LabelFrame):
+                    control.configure(
+                        bg=SUPERFICIE, fg=AZUL, font=("Arial", 11, "bold"),
+                        relief="solid", bd=1, padx=10, pady=8,
+                        highlightbackground=BORDE, highlightcolor=BORDE
+                    )
+                elif isinstance(control, tk.Frame):
+                    control.configure(bg=SUPERFICIE)
+                elif isinstance(control, tk.Label):
+                    if control is not getattr(self, "IImporte", None):
+                        control.configure(bg=SUPERFICIE, fg=TEXTO, font=("Arial", 11))
+                elif isinstance(control, tk.Button):
+                    control.configure(
+                        bg=AZUL, fg="white", activebackground="#244d78",
+                        activeforeground="white", relief="flat",
+                        font=("Arial", 10, "bold"), padx=10, pady=6,
+                        cursor="hand2"
+                    )
+                elif isinstance(control, tk.Entry):
+                    control.configure(
+                        bg="white", fg=TEXTO, relief="solid", bd=1,
+                        highlightthickness=1, highlightbackground=BORDE,
+                        highlightcolor=AZUL
+                    )
+                elif isinstance(control, st.ScrolledText):
+                    control.configure(
+                        bg=SUPERFICIE_SUAVE, fg=TEXTO, relief="solid", bd=1,
+                        font=("Arial", 10), padx=7, pady=7
+                    )
+            except tk.TclError:
+                pass
+            self._estilizar_contenedor(control)
 
 
     def ExpedirRfid(self):
@@ -284,14 +371,17 @@ class FormularioOperacion:
     #########################fin de pagina1 inicio pagina2#########################
     def consulta_por_folio(self):
         self.pagina2 = ttk.Frame(self.cuaderno1)
-        self.cuaderno1.add(self.pagina2, text=" Modulo de Cobro")
+        self.cuaderno1.add(self.pagina2, text="  COBRO DE BOLETOS  ")
+        self.pagina2.grid_columnconfigure(0, weight=1)
+        self.pagina2.grid_columnconfigure(1, weight=1)
+        self.pagina2.grid_columnconfigure(2, weight=1)
         #en el frame
-        self.FOLIO_QR=tk.LabelFrame(self.pagina2, text="FOLIO_QR")
-        self.FOLIO_QR.grid(column=0, row=0, padx=2, pady=10, sticky=tk.NW)
+        self.FOLIO_QR=tk.LabelFrame(self.pagina2, text="  LECTURA Y PAGO  ")
+        self.FOLIO_QR.grid(column=0, row=0, padx=(14, 7), pady=14, sticky=tk.NSEW)
 
-        self.labelframe2=tk.LabelFrame(self.FOLIO_QR, text="Autos")
-        self.labelframe2.grid(column=0, row=0, padx=2, pady=10, sticky=tk.NW)
-        self.label1=tk.Label(self.labelframe2, text="Lector QR")
+        self.labelframe2=tk.LabelFrame(self.FOLIO_QR, text="  Boleto del vehiculo  ")
+        self.labelframe2.grid(column=0, row=0, padx=4, pady=8, sticky=tk.EW)
+        self.label1=tk.Label(self.labelframe2, text="Escanee QR o escriba el folio")
         self.label1.grid(column=0, row=0, padx=4, pady=4)
         self.label3=tk.Label(self.labelframe2, text="Entro:")
         self.label3.grid(column=0, row=1, padx=4, pady=4)
@@ -299,9 +389,9 @@ class FormularioOperacion:
         self.label4.grid(column=0, row=2, padx=4, pady=4)
 
 
-        self.labelpromo=tk.LabelFrame(self.FOLIO_QR, text="Leer el QR de Promocion")
-        self.labelpromo.grid(column=0, row=1, padx=2, pady=10, sticky=tk.NW)
-        self.promolbl1=tk.Label(self.labelpromo, text="Codigo QR")
+        self.labelpromo=tk.LabelFrame(self.FOLIO_QR, text="  Promocion  ")
+        self.labelpromo.grid(column=0, row=1, padx=4, pady=8, sticky=tk.EW)
+        self.promolbl1=tk.Label(self.labelpromo, text="Codigo promocional")
         self.promolbl1.grid(column=0, row=0, padx=4, pady=4)
         self.promolbl2=tk.Label(self.labelpromo, text="Tipo Prom")
         self.promolbl2.grid(column=0, row=1, padx=4, pady=4)
@@ -318,13 +408,13 @@ class FormularioOperacion:
         #botones
 
 
-        self.labelcuantopagas=tk.LabelFrame(self.FOLIO_QR, text='cual es el pago')
-        self.labelcuantopagas.grid(column=0,row=2, padx=2, pady=10, sticky=tk.NW)
-        self.cuantopagas=tk.Label(self.labelcuantopagas, text="la cantidad entregada")
+        self.labelcuantopagas=tk.LabelFrame(self.FOLIO_QR, text='  Pago en efectivo  ')
+        self.labelcuantopagas.grid(column=0,row=2, padx=4, pady=8, sticky=tk.EW)
+        self.cuantopagas=tk.Label(self.labelcuantopagas, text="Cantidad recibida")
         self.cuantopagas.grid(column=0, row=0, padx=4, pady=4)
-        self.importees=tk.Label(self.labelcuantopagas, text="el importe es")
+        self.importees=tk.Label(self.labelcuantopagas, text="Importe")
         self.importees.grid(column=0, row=1, padx=4, pady=4)
-        self.cambio=tk.Label(self.labelcuantopagas, text="el cambio es")
+        self.cambio=tk.Label(self.labelcuantopagas, text="Cambio")
         self.cambio.grid(column=0, row=2, padx=4, pady=4)
         self.cuantopagasen=tk.StringVar()
         self.cuantopagasen.set(100)
@@ -340,14 +430,14 @@ class FormularioOperacion:
 
 
         #en otro frame
-        self.labelframe3_principal=tk.LabelFrame(self.pagina2, text="Datos del COBRO")
-        self.labelframe3_principal.grid(column=1, row=0, pady=10, sticky=tk.NW)
+        self.labelframe3_principal=tk.LabelFrame(self.pagina2, text="  RESUMEN DEL COBRO  ")
+        self.labelframe3_principal.grid(column=1, row=0, padx=7, pady=14, sticky=tk.NSEW)
 
-        self.labelframe3=tk.LabelFrame(self.labelframe3_principal, text="Tiempo y Salida")
-        self.labelframe3.grid(column=0, row=0, padx=2, pady=10, sticky=tk.NW)
-        self.lbl1=tk.Label(self.labelframe3, text="Hr Salida")
+        self.labelframe3=tk.LabelFrame(self.labelframe3_principal, text="  Permanencia e importe  ")
+        self.labelframe3.grid(column=0, row=0, padx=4, pady=8, sticky=tk.EW)
+        self.lbl1=tk.Label(self.labelframe3, text="Hora de salida")
         self.lbl1.grid(column=0, row=1, padx=4, pady=4)
-        self.lbl2=tk.Label(self.labelframe3, text="TiempoTotal")
+        self.lbl2=tk.Label(self.labelframe3, text="Tiempo total")
         self.lbl2.grid(column=0, row=2, padx=4, pady=4)
         self.lbl3=tk.Label(self.labelframe3, text="Importe")
         self.lbl3.grid(column=0, row=3, padx=4, pady=4)
@@ -378,14 +468,14 @@ class FormularioOperacion:
         self.scrol_datos_boleto_cobrado=st.ScrolledText(self.labelframe3_principal, width=28, height=7)
         self.scrol_datos_boleto_cobrado.grid(column=0,row=2, padx=1, pady=1)
 
-        self.label15=tk.Label(self.labelframe3_principal, text="Viabilidad de COBRO")
+        self.label15=tk.Label(self.labelframe3_principal, text="ESTADO DEL COBRO")
         self.label15.grid(column=0, row=3, padx=0, pady=0)
 
-        self.labelPerdido_principal=tk.LabelFrame(self.pagina2, text="")
-        self.labelPerdido_principal.grid(column=2,row=0, pady=10, sticky=tk.NW)
+        self.labelPerdido_principal=tk.LabelFrame(self.pagina2, text="  CASOS ESPECIALES  ")
+        self.labelPerdido_principal.grid(column=2,row=0, padx=(7, 14), pady=14, sticky=tk.NSEW)
 
-        self.labelPerdido=tk.LabelFrame(self.labelPerdido_principal, text="Boleto Perdido/Dañado")
-        self.labelPerdido.grid(column=0,row=0,padx=2, pady=10, sticky=tk.NW)
+        self.labelPerdido=tk.LabelFrame(self.labelPerdido_principal, text="  Boleto perdido o danado  ")
+        self.labelPerdido.grid(column=0,row=0,padx=4, pady=8, sticky=tk.EW)
 
 
         self.label_frame_folio=tk.LabelFrame(self.labelPerdido, text="FOLIO")
@@ -413,8 +503,8 @@ class FormularioOperacion:
         self.boton3.grid(column=2, row=1, sticky=tk.NE, padx=10, pady=5)
 
 
-        self.labelPerdido2=tk.LabelFrame(self.labelPerdido_principal, text="Boletos sin cobro")
-        self.labelPerdido2.grid(column=0,row=1,padx=2, pady=10, sticky=tk.NW)
+        self.labelPerdido2=tk.LabelFrame(self.labelPerdido_principal, text="  Vehiculos dentro  ")
+        self.labelPerdido2.grid(column=0,row=1,padx=4, pady=8, sticky=tk.EW)
 
         self.boton2=tk.Button(self.labelPerdido2, text="B./SIN cobro", command=self.BoletoDentro, width=10, height=2, anchor="center", background=button_color, fg=button_letters_color)
         self.boton2.grid(column=0, row=0)
