@@ -146,9 +146,11 @@ class FormularioOperacion:
         self.cuaderno1.bind("<<NotebookTabChanged>>", self.on_tab_changed)
 
         self.cuaderno1.config(cursor="")         # Tipo de cursor
+        self.pagina2 = ttk.Frame(self.cuaderno1)
+        self.cuaderno1.add(self.pagina2, text="  COBRO Y TICKETS  ")
+        self.consulta_por_folio()
         self.ExpedirRfid()
         self.check_inputs()
-        self.consulta_por_folio()
         self.listado_completo()
         self.interface_pensionados()
         self.cuaderno1.pack(fill="both", expand=True)
@@ -254,76 +256,48 @@ class FormularioOperacion:
 
 
     def ExpedirRfid(self):
-        seccion_entrada = tk.Frame(self.cuaderno1)
-        self.cuaderno1.add(seccion_entrada, text="Expedir Boleto")
+        """Agrega la expedicion de tickets dentro de la pantalla de cobro."""
+        seccion_entrada = tk.LabelFrame(
+            self.pagina2, text="  EXPEDIR TICKET DE ENTRADA  ",
+            bg=SUPERFICIE, fg=AZUL, font=("Arial", 11, "bold"),
+            relief="solid", bd=1, padx=12, pady=8
+        )
+        seccion_entrada.grid(
+            column=0, row=1, columnspan=3, padx=14, pady=(0, 12), sticky=tk.EW
+        )
+        seccion_entrada.grid_columnconfigure(4, weight=1)
 
-        seccion_entrada = tk.Frame(seccion_entrada)
-
-        seccion_entrada.grid(column=0, row=0, padx=2, pady=2, sticky=tk.NSEW)
-
-        frame_bienvenida = tk.Frame(seccion_entrada)
-        frame_bienvenida.grid(column=0, row=0, padx=2, pady=2)
-
-        frame_mensaje_bienvenida = tk.Frame(frame_bienvenida)
-        frame_mensaje_bienvenida.grid(column=0, row=0, padx=2, pady=2)
-
-        # Asegura que la fila y la columna del frame se expandan con el contenedor
-        frame_mensaje_bienvenida.grid_rowconfigure(0, weight=1)
-        frame_mensaje_bienvenida.grid_columnconfigure(0, weight=1)
-
-        label_entrada = tk.Label(frame_mensaje_bienvenida, text=f"Bienvenido(a) al estacionamiento {nombre_estacionamiento}", font=('Arial', 25), justify='center')
-        label_entrada.grid(row=0, column=0)
-
-
-
-        frame_datos_entrada = tk.Frame(seccion_entrada)
-        frame_datos_entrada.grid(column=0, row=1, padx=2, pady=2)
-
-        frame_info_cliente=tk.Frame(frame_datos_entrada)
-        frame_info_cliente.grid(column=0, row=0, padx=2, pady=2)
-
-        frame_info_placa=tk.Frame(frame_info_cliente)
-        frame_info_placa.grid(column=0, row=0, padx=2, pady=2)
-
-        label_placa=tk.Label(frame_info_placa, text="Ingrese Placa", font=('Arial', 25))
-        label_placa.grid(column=0, row=0, padx=2, pady=2)
+        label_placa=tk.Label(seccion_entrada, text="Placa", font=('Arial', 12, 'bold'))
+        label_placa.grid(column=0, row=0, padx=(4, 8), pady=4)
 
         self.Placa=tk.StringVar()
-        self.entry_placa=tk.Entry(frame_info_placa, width=20, textvariable=self.Placa, font=('Arial', 35, 'bold'), justify='center')
-        self.entry_placa.grid(column=0, row=1, padx=2, pady=2)
+        self.entry_placa=tk.Entry(seccion_entrada, width=13, textvariable=self.Placa, font=('Arial', 18, 'bold'), justify='center')
+        self.entry_placa.grid(column=1, row=0, padx=(0, 16), pady=4)
 
-
-
-        frame_boton=tk.Frame(frame_datos_entrada)
-        frame_boton.grid(column=2, row=0, padx=2, pady=2)
-
-        frame_folio = tk.Frame(frame_boton)
-        frame_folio.grid(column=0, row=0, padx=2, pady=2)
-
-        label_folio=tk.Label(frame_folio, text="Folio:", font=font_entrada)
-        label_folio.grid(column=0, row=0, padx=2, pady=2, sticky="nsew")
+        label_folio=tk.Label(seccion_entrada, text="Folio", font=('Arial', 12, 'bold'))
+        label_folio.grid(column=2, row=0, padx=(0, 8), pady=4)
         self.MaxId=tk.StringVar()
-        entryMaxId=ttk.Entry(frame_folio, width=12, textvariable=self.MaxId, state="readonly", font=font_entrada)
-        entryMaxId.grid(column=1, row=0, padx=2, pady=2, sticky=tk.NW)
+        entryMaxId=ttk.Entry(seccion_entrada, width=8, textvariable=self.MaxId, state="readonly", font=('Arial', 16, 'bold'))
+        entryMaxId.grid(column=3, row=0, padx=(0, 16), pady=4)
 
-        boton_entrada=tk.Button(frame_boton, text="Generar Entrada", width=15, height=3, anchor="center", background=button_color, fg=button_letters_color, font=font_entrada_negritas, command=self.agregarRegistroRFID)
-        boton_entrada.grid(column=0, row=1, padx=2, pady=2)
-        
+        boton_entrada=tk.Button(
+            seccion_entrada, text="GENERAR E IMPRIMIR TICKET", width=24,
+            background=VERDE, fg="white", font=('Arial', 11, 'bold'),
+            command=self.agregarRegistroRFID
+        )
+        boton_entrada.grid(column=4, row=0, padx=8, pady=4, sticky=tk.W)
 
-        frame_info = tk.LabelFrame(seccion_entrada)#, background = '#CCC')
-        frame_info.grid(column=0, row=2, padx=2, pady=2)
+        self.label_informacion = tk.Label(
+            seccion_entrada, text="Listo para generar ticket", width=24,
+            font=('Arial', 11, 'bold'), justify='center'
+        )
+        self.label_informacion.grid(column=5, row=0, padx=8, pady=4)
 
-        self.label_informacion = tk.Label(frame_info, text="... ", width=25, font=font_mensaje, justify='center')
-        self.label_informacion.grid(column=0, row=0, padx=2, pady=2)
-
-
-
-        frame_reloj = tk.Frame(seccion_entrada)
-        frame_reloj.grid(column=0, row=3, padx=2, pady=2)
-
-        self.Reloj = tk.Label(frame_reloj, text="Reloj", background="white", font=font_reloj, justify='center')
-        self.Reloj.grid(column=0, row=0, padx=2, pady=2)
-        self.entry_placa.focus()
+        self.Reloj = tk.Label(
+            seccion_entrada, text="Reloj", background=SUPERFICIE_SUAVE,
+            font=('Arial', 12, 'bold'), justify='center'
+        )
+        self.Reloj.grid(column=6, row=0, padx=(8, 4), pady=4)
 
     def check_inputs(self):
         fecha_hora =datetime.now().strftime("%d-%b-%Y %H:%M:%S")
@@ -370,8 +344,6 @@ class FormularioOperacion:
 
     #########################fin de pagina1 inicio pagina2#########################
     def consulta_por_folio(self):
-        self.pagina2 = ttk.Frame(self.cuaderno1)
-        self.cuaderno1.add(self.pagina2, text="  COBRO DE BOLETOS  ")
         self.pagina2.grid_columnconfigure(0, weight=1)
         self.pagina2.grid_columnconfigure(1, weight=1)
         self.pagina2.grid_columnconfigure(2, weight=1)
@@ -494,13 +466,16 @@ class FormularioOperacion:
         self.label_botones_boletos_perdido.grid(column=0,row=1,padx=2, pady=10, sticky=tk.NW)
 
         self.boton_boleto_dañado=tk.Button(self.label_botones_boletos_perdido, text="Boleto\nDañado", background=button_color, fg=button_letters_color, command=self.BoletoDañado, width=10, height=3, anchor="center", font=("Arial", 10))
-        self.boton_boleto_dañado.grid(column=0, row=1, sticky=tk.NE, padx=10, pady=5)
+        self.boton_boleto_dañado.configure(width=9)
+        self.boton_boleto_dañado.grid(column=0, row=1, sticky=tk.EW, padx=3, pady=5)
 
         self.boton3=tk.Button(self.label_botones_boletos_perdido, text="Boleto Perdido\nCON FOLIO", background=button_color, fg=button_letters_color, command=self.BoletoPerdido_conFolio, width=10, height=3, anchor="center", font=("Arial", 10))
-        self.boton3.grid(column=1, row=1, sticky=tk.NE, padx=10, pady=5)
+        self.boton3.configure(width=11)
+        self.boton3.grid(column=1, row=1, sticky=tk.EW, padx=3, pady=5)
 
         self.boton3=tk.Button(self.label_botones_boletos_perdido, text="Boleto Perdido\nSIN FOLIO", background=button_color, fg=button_letters_color, command=self.BoletoPerdido_sinFolio, width=10, height=3, anchor="center", font=("Arial", 10))
-        self.boton3.grid(column=2, row=1, sticky=tk.NE, padx=10, pady=5)
+        self.boton3.configure(width=11)
+        self.boton3.grid(column=2, row=1, sticky=tk.EW, padx=3, pady=5)
 
 
         self.labelPerdido2=tk.LabelFrame(self.labelPerdido_principal, text="  Vehiculos dentro  ")
@@ -509,8 +484,8 @@ class FormularioOperacion:
         self.boton2=tk.Button(self.labelPerdido2, text="B./SIN cobro", command=self.BoletoDentro, width=10, height=2, anchor="center", background=button_color, fg=button_letters_color)
         self.boton2.grid(column=0, row=0)
 
-        self.scrolledtxt=st.ScrolledText(self.labelPerdido2, width=28, height=7)
-        self.scrolledtxt.grid(column=1,row=0, padx=10, pady=10)
+        self.scrolledtxt=st.ScrolledText(self.labelPerdido2, width=24, height=6)
+        self.scrolledtxt.grid(column=1,row=0, padx=5, pady=6)
 
 
 
@@ -2141,8 +2116,9 @@ class FormularioOperacion:
             file.writelines(list_corte)
             file.close()
 
-        # Cierra el programa al final del reporte
-        self.Cerrar_Programa()
+        # El corte representa el cierre del turno. Se cierra directamente,
+        # sin volver a solicitar la confirmacion general de salida.
+        self.root.after(150, self.root.destroy)
 
     def Cerrar_Programa(self):
         confirmar = configuracion_tpv["funcionamiento"].get("confirmar_cierre", True)
@@ -3318,22 +3294,16 @@ class FormularioOperacion:
 
         # Comprobar si la pestaña actual es la que se desea
         if current_tab_index == 0:
-            # Hacer focus en el widget deseado
-            self.entry_placa.focus_set()
-        
-        # Comprobar si la pestaña actual es la que se desea
-        elif current_tab_index == 1:
-            # Hacer focus en el widget deseado
             self.entryfolio.focus_set()
 
         # Comprobar si la pestaña actual es la que se desea
-        elif current_tab_index == 2:
+        elif current_tab_index == 1:
             self.entry_cortes_anteriores.focus()
             self.Calcular_Corte()
             self.Puertoycontar()
 
         # Comprobar si la pestaña actual es la que se desea
-        elif current_tab_index == 3:
+        elif current_tab_index == 2:
             # Hacer focus en el widget deseado
             self.caja_texto_numero_tarjeta.focus_set()
 
