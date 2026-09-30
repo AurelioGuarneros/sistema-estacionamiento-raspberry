@@ -154,6 +154,8 @@ class FormularioOperacion:
         self.cuaderno1.config(cursor="")         # Tipo de cursor
         self.pagina2 = ttk.Frame(self.cuaderno1)
         self.cuaderno1.add(self.pagina2, text="  COBRO Y TICKETS  ")
+        self.pagina_casos = ttk.Frame(self.cuaderno1)
+        self.cuaderno1.add(self.pagina_casos, text="  CASOS ESPECIALES  ")
         self.consulta_por_folio()
         self.ExpedirRfid()
         self.check_inputs()
@@ -313,21 +315,21 @@ class FormularioOperacion:
         entryMaxId.grid(column=3, row=0, padx=(0, 16), pady=4)
 
         boton_entrada=tk.Button(
-            seccion_entrada, text="GENERAR E IMPRIMIR TICKET", width=24,
+            seccion_entrada, text="GENERAR TICKET", width=18,
             background=VERDE, fg="white", font=('Arial', 11, 'bold'),
             command=self.agregarRegistroRFID
         )
         boton_entrada.grid(column=4, row=0, padx=8, pady=4, sticky=tk.W)
 
         self.label_informacion = tk.Label(
-            seccion_entrada, text="Listo para generar ticket", width=24,
+            seccion_entrada, text="Listo para generar ticket", width=18,
             font=('Arial', 11, 'bold'), justify='center'
         )
         self.label_informacion.grid(column=5, row=0, padx=8, pady=4)
 
         self.Reloj = tk.Label(
             seccion_entrada, text="Reloj", background=SUPERFICIE_SUAVE,
-            font=('Arial', 12, 'bold'), justify='center'
+            font=('Arial', 10, 'bold'), justify='center'
         )
         self.Reloj.grid(column=6, row=0, padx=(8, 4), pady=4)
 
@@ -376,8 +378,8 @@ class FormularioOperacion:
 
     #########################fin de pagina1 inicio pagina2#########################
     def consulta_por_folio(self):
-        self.pagina2.grid_columnconfigure(0, weight=1)
-        self.pagina2.grid_columnconfigure(1, weight=1)
+        self.pagina2.grid_columnconfigure(0, weight=3)
+        self.pagina2.grid_columnconfigure(1, weight=2)
         self.pagina2.grid_columnconfigure(2, weight=0)
         self.pagina2.grid_rowconfigure(1, weight=1)
         #en el frame
@@ -476,9 +478,13 @@ class FormularioOperacion:
         self.label15=tk.Label(self.labelframe3_principal, text="ESTADO DEL COBRO")
         self.label15.grid(column=0, row=3, padx=0, pady=0)
 
-        self.labelPerdido_principal=tk.LabelFrame(self.pagina2, text="  CASOS ESPECIALES  ")
+        self.pagina_casos.grid_columnconfigure(0, weight=1)
+        self.pagina_casos.grid_rowconfigure(0, weight=1)
+        self.labelPerdido_principal=tk.LabelFrame(
+            self.pagina_casos, text="  BOLETOS ESPECIALES Y VEHICULOS DENTRO  "
+        )
         self.labelPerdido_principal.grid(
-            column=0, row=2, columnspan=2, padx=10, pady=(4, 8), sticky=tk.EW
+            column=0, row=0, padx=14, pady=14, sticky=tk.NSEW
         )
         self.labelPerdido_principal.grid_columnconfigure(0, weight=3)
         self.labelPerdido_principal.grid_columnconfigure(1, weight=2)
@@ -3337,12 +3343,16 @@ class FormularioOperacion:
 
         # Comprobar si la pestaña actual es la que se desea
         elif current_tab_index == 1:
+            self.entryPonerFOLIO.focus_set()
+
+        # Comprobar si la pestaña actual es la que se desea
+        elif current_tab_index == 2:
             self.entry_cortes_anteriores.focus()
             self.Calcular_Corte()
             self.Puertoycontar()
 
         # Comprobar si la pestaña actual es la que se desea
-        elif current_tab_index == 2:
+        elif current_tab_index == 3:
             # Hacer focus en el widget deseado
             self.caja_texto_numero_tarjeta.focus_set()
 
