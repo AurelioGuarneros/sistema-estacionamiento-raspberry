@@ -13,34 +13,32 @@ import traceback
 # libreria de I/O (entradas / salidas)
 import RPi.GPIO as io
 
-# Pines
-pin_sensor_autos = 4
-pin_boton = 18
-pin_sensor_boletos = 23
+# Entradas en numeración BCM, verificadas en el cableado de Entrada.
+# Los sensores y el botón son activos en bajo (LO); PUD_UP mantiene HI en reposo.
+pin_sensor_autos = 21       # GPIO21, pin físico 40
+pin_boton = 20              # GPIO20, pin físico 38
+pin_sensor_boletos = 16     # GPIO16, pin físico 36
 
-#Entrada
-loop = pin_sensor_autos                      #gpio16,pin36,entrada loop                    
-boton = pin_boton                     #gpio12,pin32,entrada boton
-SenBoleto = pin_sensor_boletos                 #gpio20,pin38,sensor boleto
+loop = pin_sensor_autos
+boton = pin_boton
+SenBoleto = pin_sensor_boletos
 
-#salidas
-barrera = 13                  #gpio13,pin33,Salida barrera
-out1 = 19                     #gpio19,pin35,Salida indicador loop
-out2 = 6                     #gpio6,pin31,Salida indicador boton
-out3 = 26                     #gpio26,pin37,Salida indicador barrera
-io.setmode(io.BCM)              # modo in/out pin del micro
-io.setwarnings(False)           # no señala advertencias de pin ya usados
-io.setup(loop,io.IN)             # configura en el micro las entradas
-# El programa considera nivel alto como boton presionado. El pull-down evita
-# que el GPIO quede flotando durante el arranque de la Raspberry.
-io.setup(boton,io.IN, pull_up_down=io.PUD_DOWN)
-# io.setup(SenBoleto,io.IN)             # configura en el micro las entradas
-# La barrera de Entrada es activa en bajo. Se inicializa en alto desde el
-# mismo setup para evitar un pulso de apertura antes de ejecutar io.output().
-io.setup(barrera,io.OUT, initial=io.HIGH)
-io.setup(out1,io.OUT)           # configura en el micro las salidas
-io.setup(out2,io.OUT)
-io.setup(out3,io.OUT)  
+# Salidas
+barrera = 13
+out1 = 19
+out2 = 6
+out3 = 26
+io.setmode(io.BCM)
+io.setwarnings(False)
+io.setup(loop, io.IN, pull_up_down=io.PUD_UP)
+io.setup(boton, io.IN, pull_up_down=io.PUD_UP)
+io.setup(SenBoleto, io.IN, pull_up_down=io.PUD_UP)
+# La barrera de Entrada es activa en bajo. Se inicia cerrada para evitar
+# un pulso de apertura al arrancar la Raspberry.
+io.setup(barrera, io.OUT, initial=io.HIGH)
+io.setup(out1, io.OUT)
+io.setup(out2, io.OUT)
+io.setup(out3, io.OUT)
 line=''
 io.output(barrera,1)
 io.output(out1,0)
@@ -48,6 +46,7 @@ io.output(out2,0)
 io.output(out3,0)
 BanLoop =0
 BanBoton=0
+BanSenBoleto=0
 BotonArmado=0 #No se acepta hasta detectar primero el boton suelto
 # BanSenBoleto=0
 BanImpresion=0 #No ha impreso
@@ -171,7 +170,7 @@ class FormularioOperacion:
 
     def Intloop(self): #Detecta presencia de automovil
         global BanLoop
-        if io.input(loop):
+        if io.input(loop) == io.LOW:
             print('hay auto') 
             io.output(out1,0)#con un "1" se apaga el led
             BanLoop = 1
@@ -181,7 +180,7 @@ class FormularioOperacion:
 
     def IntBoton(self): #Detecta presencia de automovil
         global BanBoton
-        if io.input(boton):
+        if io.input(boton) == io.LOW:
             print('Presiono boton')
             io.output(out2,0)
             BanBoton = 1
@@ -194,7 +193,7 @@ class FormularioOperacion:
 
 
     def check_inputs(self):
-        global BanBoton, BanLoop, BanImpresion, BotonArmado
+        global BanBoton, BanLoop, BanSenBoleto, BanImpresion, BotonArmado
     
         if BanLoop == 1:
             self.loopDet.config(text = "Hay auto", font=('Arial', 15), background = 'green')
@@ -247,6 +246,21 @@ class FormularioOperacion:
            
 
             #BanImpresion = 1
+
+        # El sensor de boleto también entrega activo en bajo (LO).
+        BanSenBoleto = 1 if io.input(SenBoleto) == io.LOW else 0
+        if BanSenBoleto:
+            self.SenBol2.config(
+                text="SENSOR BOLETO ACTIVO (LO)",
+                font=('Arial', 12, 'bold'),
+                background='lightgreen'
+            )
+        else:
+            self.SenBol2.config(
+                text="SENSOR BOLETO LIBRE (HI)",
+                font=('Arial', 12),
+                background='#CCC'
+            )
 
         now =datetime.now() 
         fecha1= now.strftime("%d-%b-%y")
