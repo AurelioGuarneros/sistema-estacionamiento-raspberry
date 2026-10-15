@@ -91,6 +91,8 @@ class FormularioOperacion:
         self._fase_animacion = 0
         self._ticket_visible_hasta = 0
         self._error_impresora_hasta = 0
+        self._ultimo_boton_leido = None
+        self._ultimo_loop_leido = None
 
         self.pantalla = tk.Canvas(
             self.ventana1, bg="#071a33", highlightthickness=0
@@ -417,6 +419,17 @@ class FormularioOperacion:
 
     def check_inputs(self):
         global BanBoton, BanLoop, BanImpresion, BotonArmado
+
+        # Lectura directa y frecuente. Es más confiable que depender solamente
+        # de interrupciones GPIO en distintas versiones de Raspberry Pi OS.
+        BanLoop = 1 if io.input(loop) else 0
+        BanBoton = 1 if io.input(boton) else 0
+        if BanLoop != self._ultimo_loop_leido:
+            print("Sensor de auto:", "ACTIVO" if BanLoop else "LIBRE")
+            self._ultimo_loop_leido = BanLoop
+        if BanBoton != self._ultimo_boton_leido:
+            print("Botón:", "PRESIONADO" if BanBoton else "SUELTO")
+            self._ultimo_boton_leido = BanBoton
 
         self._fase_animacion += 1
         ahora_mono = time.monotonic()
