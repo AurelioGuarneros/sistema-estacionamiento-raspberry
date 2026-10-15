@@ -2,6 +2,7 @@ from datetime import datetime, time, timedelta
 formato = "%H:%M:%S"
 from escpos.printer import *
 import qrcode
+import os
 import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox as mb
@@ -15,10 +16,11 @@ from PIL import Image, ImageTk
 # libreria de I/O (entradas / salidas)
 import RPi.GPIO as io
 
-# Pines
-pin_sensor_autos = 4
-pin_boton = 18
-pin_sensor_boletos = 23
+# Pines BCM originales de la boletera. Pueden cambiarse desde config.env sin
+# editar el programa cuando una instalación tenga cableado diferente.
+pin_sensor_autos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_AUTO", "16"))
+pin_boton = int(os.environ.get("ESTACIONAMIENTO_GPIO_BOTON", "12"))
+pin_sensor_boletos = int(os.environ.get("ESTACIONAMIENTO_GPIO_SENSOR_BOLETO", "20"))
 
 #Entrada
 loop = pin_sensor_autos                      #gpio16,pin36,entrada loop                    
@@ -32,7 +34,7 @@ out2 = 6                     #gpio6,pin31,Salida indicador boton
 out3 = 26                     #gpio26,pin37,Salida indicador barrera
 io.setmode(io.BCM)              # modo in/out pin del micro
 io.setwarnings(False)           # no señala advertencias de pin ya usados
-io.setup(loop,io.IN)             # configura en el micro las entradas
+io.setup(loop,io.IN, pull_up_down=io.PUD_DOWN) # evita lectura flotante
 # El programa considera nivel alto como boton presionado. El pull-down evita
 # que el GPIO quede flotando durante el arranque de la Raspberry.
 io.setup(boton,io.IN, pull_up_down=io.PUD_DOWN)
