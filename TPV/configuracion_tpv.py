@@ -7,10 +7,11 @@ pueda cambiar tarifas e impresora sin editar codigo ni archivos del sistema.
 import json
 import os
 import shutil
+import re
 from copy import deepcopy
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import colorchooser, filedialog
 from tkinter import messagebox as mb
 from tkinter import ttk
 
@@ -67,6 +68,18 @@ CONFIG_PREDETERMINADA = {
     "interface": {
         "tema": "Azul",
         "tamano_texto": "Normal",
+        "formato_fecha_interface": "%Y-%m-%d %H:%M:%S",
+        "formato_fecha_boleto": "%Y-%m-%d %H:%M:%S",
+        "formato_reloj_expedidor": "%d-%b-%Y %H:%M:%S",
+        "fuente": "Arial",
+        "colores": {
+            "botones": "#17365d", "texto_botones": "#ffffff",
+            "boton_cobro": "#2e7d32", "texto_cobro": "#ffffff",
+            "reloj_primera_hora": "#062546", "reloj_1_4": "#b9d8f9",
+            "reloj_2_4": "#5ba3f1", "reloj_3_4": "#1270d3",
+            "reloj_hora_completa": "#062546", "alerta": "#ff0000",
+        },
+        "tamanos": {"general": 11, "botones": 11, "titulos": 12, "subtitulos": 12},
     },
     "impresora": {
         "modelo": "Epson USB",
@@ -86,6 +99,13 @@ CONFIG_PREDETERMINADA = {
             "hora": 10,
         },
         "personalizada": _tarifa_actual(),
+        "promociones": {
+            "tarifa_normal": True, "tarifa_personalizada": False,
+            "tipo": "QR", "nombre": "", "seleccion": "",
+        },
+    },
+    "envio_informacion": {
+        "base_datos": "", "cortes": [], "notificaciones": [],
     },
     "funcionamiento": {
         "enviar_cortes": True,
@@ -194,6 +214,9 @@ class VentanaConfiguracion(tk.Toplevel):
         sucursal = self.configuracion["sucursal"]
         facturacion = self.configuracion["facturacion"]
         imagenes = self.configuracion["imagenes"]
+        interfaz = self.configuracion["interface"]
+        promociones = tarifa["promociones"]
+        envios = self.configuracion["envio_informacion"]
         self.empresa_vars = {clave: tk.StringVar(value=valor) for clave, valor in empresa.items()}
         self.sucursal_vars = {clave: tk.StringVar(value=valor) for clave, valor in sucursal.items()}
         self.facturacion_vars = {clave: tk.StringVar(value=valor) for clave, valor in facturacion.items()}
@@ -201,6 +224,24 @@ class VentanaConfiguracion(tk.Toplevel):
         self.vehiculo = tk.StringVar(value=imagenes.get("vehiculo", ""))
         self._imagenes_tk = {}
         self.valores_tarifa = {}
+        self.formato_fecha_interface = tk.StringVar(value=interfaz["formato_fecha_interface"])
+        self.formato_fecha_boleto = tk.StringVar(value=interfaz["formato_fecha_boleto"])
+        self.formato_reloj_expedidor = tk.StringVar(value=interfaz["formato_reloj_expedidor"])
+        self.fuente_sistema = tk.StringVar(value=interfaz["fuente"])
+        self.colores_interface = {
+            clave: tk.StringVar(value=valor) for clave, valor in interfaz["colores"].items()
+        }
+        self.tamanos_interface = {
+            clave: tk.StringVar(value=str(valor)) for clave, valor in interfaz["tamanos"].items()
+        }
+        self.promo_normal = tk.BooleanVar(value=promociones["tarifa_normal"])
+        self.promo_personalizada = tk.BooleanVar(value=promociones["tarifa_personalizada"])
+        self.promo_tipo = tk.StringVar(value=promociones["tipo"])
+        self.promo_nombre = tk.StringVar(value=promociones["nombre"])
+        self.promo_seleccion = tk.StringVar(value=promociones["seleccion"])
+        self.email_base_datos = tk.StringVar(value=envios.get("base_datos", "") or os.environ.get("ESTACIONAMIENTO_EMAIL_DATABASE", ""))
+        self.correos_corte = list(envios.get("cortes") or self._separar_correos(os.environ.get("ESTACIONAMIENTO_EMAIL_CORTE", "")))
+        self.correos_notificacion = list(envios.get("notificaciones") or self._separar_correos(os.environ.get("ESTACIONAMIENTO_EMAIL_NOTIFICACION", "")))
 
     def _construir(self):
         encabezado = tk.Frame(self, bg=AZUL, padx=24, pady=16)
@@ -381,18 +422,53 @@ class VentanaConfiguracion(tk.Toplevel):
 
     def _pestana_interface(self, cuaderno):
         marco = self._marco(cuaderno, "Interface")
+        opciones = ttk.Notebook(marco)
+        opciones.pack(fill="both", expand=True)
+        apariencia = tk.Frame(opciones, bg=FONDO, padx=12, pady=12)
+        impresion = tk.Frame(opciones, bg=FONDO, padx=12, pady=12)
+        opciones.add(apariencia, text="Apariencia")
+        opciones.add(impresion, text="Impresora")
         tarjeta = tk.LabelFrame(
-            marco, text=" Apariencia de la TPV ", bg="white", fg=AZUL,
+            apariencia, text=" Formatos y fuente ", bg="white", fg=AZUL,
             font=("Arial", 14, "bold"), padx=16, pady=16
         )
-        tarjeta.pack(fill="x", pady=(0, 16))
+        tarjeta.pack(side="left", fill="both", expand=True, padx=(0, 7))
+        formatos = ("%Y-%m-%d %H:%M:%S", "%d-%b-%Y %H:%M:%S", "%d/%m/%Y %H:%M")
+        for fila, (texto, variable) in enumerate((
+            ("Fecha en interfaz", self.formato_fecha_interface),
+            ("Fecha en boleto", self.formato_fecha_boleto),
+            ("Reloj del expedidor", self.formato_reloj_expedidor),
+        )):
+            tk.Label(tarjeta, text=texto, bg="white", font=("Arial", 11, "bold")).grid(row=fila, column=0, sticky="w", pady=6)
+            ttk.Combobox(tarjeta, textvariable=variable, values=formatos, width=25).grid(row=fila, column=1, padx=8, pady=6)
+        tk.Label(tarjeta, text="Fuente del sistema", bg="white", font=("Arial", 11, "bold")).grid(row=3, column=0, sticky="w", pady=6)
+        ttk.Combobox(tarjeta, textvariable=self.fuente_sistema, values=("Arial", "DejaVu Sans", "Liberation Sans"), width=25).grid(row=3, column=1, padx=8, pady=6)
         tk.Checkbutton(
             tarjeta, text="Mostrar reloj adicional", variable=self.mostrar_reloj,
             bg="white", font=("Arial", 12), activebackground="white"
-        ).pack(anchor="w", pady=6)
+        ).grid(row=4, column=0, columnspan=2, sticky="w", pady=8)
+
+        visual = tk.LabelFrame(apariencia, text=" Colores y tamaños ", bg="white", fg=AZUL, font=("Arial", 14, "bold"), padx=10, pady=10)
+        visual.pack(side="left", fill="both", expand=True, padx=(7, 0))
+        etiquetas = {
+            "botones": "Botones", "texto_botones": "Texto de botones",
+            "boton_cobro": "Botón de cobro", "texto_cobro": "Texto de cobro",
+            "reloj_primera_hora": "Reloj 0-60 min", "reloj_1_4": "Reloj 1-15 min",
+            "reloj_2_4": "Reloj 16-30 min", "reloj_3_4": "Reloj 31-45 min",
+            "reloj_hora_completa": "Reloj 46-60 min", "alerta": "Alerta",
+        }
+        for fila, (clave, variable) in enumerate(self.colores_interface.items()):
+            tk.Label(visual, text=etiquetas[clave], bg="white", font=("Arial", 10, "bold")).grid(row=fila, column=0, sticky="w", pady=3)
+            muestra = tk.Label(visual, textvariable=variable, width=10, bg=variable.get(), fg="white")
+            muestra.grid(row=fila, column=1, padx=5)
+            tk.Button(visual, text="Cambiar", command=lambda v=variable, m=muestra: self._elegir_color(v, m), bg=AZUL, fg="white", relief="flat").grid(row=fila, column=2, pady=2)
+        fila_tamano = len(self.colores_interface)
+        for columna, (clave, variable) in enumerate(self.tamanos_interface.items()):
+            tk.Label(visual, text=clave.capitalize(), bg="white", font=("Arial", 9, "bold")).grid(row=fila_tamano + columna // 2, column=(columna % 2) * 2, sticky="w", pady=4)
+            ttk.Combobox(visual, textvariable=variable, values=tuple(range(9, 21)), width=4, state="readonly").grid(row=fila_tamano + columna // 2, column=(columna % 2) * 2 + 1)
 
         impresora = tk.LabelFrame(
-            marco, text=" Impresora de comprobantes ", bg="white", fg=AZUL,
+            impresion, text=" Impresora de comprobantes ", bg="white", fg=AZUL,
             font=("Arial", 14, "bold"), padx=12, pady=12
         )
         impresora.pack(fill="x")
@@ -409,6 +485,12 @@ class VentanaConfiguracion(tk.Toplevel):
         self._fila(impresora, "Product ID", self.product_id, 2, 12)
         self._fila(impresora, "Dispositivo Linux", self.dispositivo, 3, 22)
 
+    def _elegir_color(self, variable, muestra):
+        color = colorchooser.askcolor(color=variable.get(), parent=self)[1]
+        if color:
+            variable.set(color)
+            muestra.configure(bg=color)
+
     def _pestana_tarifas(self, cuaderno):
         marco = self._marco(cuaderno, "Tarifas")
         superior = tk.Frame(marco, bg="white", padx=14, pady=12)
@@ -423,6 +505,15 @@ class VentanaConfiguracion(tk.Toplevel):
                  font=("Arial", 12, "bold")).grid(row=0, column=2, padx=(30, 8))
         tk.Entry(superior, textvariable=self.boleto_perdido, width=10,
                  font=("Arial", 12), justify="right").grid(row=0, column=3)
+        promociones = tk.LabelFrame(superior, text=" Promociones ", bg="white", fg=AZUL, font=("Arial", 12, "bold"), padx=8, pady=6)
+        promociones.grid(row=1, column=0, columnspan=4, sticky="ew", pady=(12, 0))
+        tk.Checkbutton(promociones, text="Tarifa normal", variable=self.promo_normal, bg="white").grid(row=0, column=0, padx=5)
+        tk.Checkbutton(promociones, text="Tarifa personalizada", variable=self.promo_personalizada, bg="white").grid(row=0, column=1, padx=5)
+        ttk.Combobox(promociones, textvariable=self.promo_tipo, values=("QR", "Botón"), state="readonly", width=10).grid(row=0, column=2, padx=5)
+        tk.Label(promociones, text="Nombre", bg="white").grid(row=0, column=3, padx=(12, 3))
+        tk.Entry(promociones, textvariable=self.promo_nombre, width=18).grid(row=0, column=4, padx=3)
+        tk.Label(promociones, text="Tarifa", bg="white").grid(row=0, column=5, padx=(12, 3))
+        tk.Entry(promociones, textvariable=self.promo_seleccion, width=14).grid(row=0, column=6, padx=3)
 
         contenedor = tk.Frame(marco, bg="white")
         contenedor.pack(fill="both", expand=True)
@@ -460,7 +551,7 @@ class VentanaConfiguracion(tk.Toplevel):
             marco, text=" Comportamiento seguro ", bg="white", fg=AZUL,
             font=("Arial", 14, "bold"), padx=16, pady=16
         )
-        tarjeta.pack(fill="x")
+        tarjeta.pack(side="left", fill="both", expand=True, padx=(0, 8))
         tk.Checkbutton(
             tarjeta, text="Enviar informacion de cortes al cerrar",
             variable=self.enviar_cortes, bg="white", font=("Arial", 12),
@@ -476,6 +567,60 @@ class VentanaConfiguracion(tk.Toplevel):
             text="Los datos de conexion y contraseñas permanecen protegidos fuera de esta pantalla.",
             bg="white", fg="#5d6d7e", font=("Arial", 11)
         ).pack(anchor="w", pady=(18, 4))
+        envios = tk.LabelFrame(
+            marco, text=" Envío de información ", bg="white", fg=AZUL,
+            font=("Arial", 14, "bold"), padx=12, pady=12
+        )
+        envios.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        self._fila(envios, "Respaldo de base de datos", self.email_base_datos, 0, 32)
+        self.lista_cortes = self._lista_correos(envios, "Destinatarios de corte", self.correos_corte, 1)
+        self.lista_notificaciones = self._lista_correos(envios, "Destinatarios de notificaciones", self.correos_notificacion, 2)
+
+    @staticmethod
+    def _separar_correos(valor):
+        return [correo.strip() for correo in re.split(r"[,;]", valor or "") if correo.strip()]
+
+    def _lista_correos(self, padre, titulo, valores, fila):
+        marco = tk.LabelFrame(padre, text=f" {titulo} ", bg="white", padx=7, pady=7)
+        marco.grid(row=fila, column=0, columnspan=2, sticky="ew", padx=14, pady=7)
+        lista = tk.Listbox(marco, height=3, width=46, font=("Arial", 10))
+        lista.pack(side="left", fill="x", expand=True)
+        for correo in valores:
+            lista.insert("end", correo)
+        botones = tk.Frame(marco, bg="white")
+        botones.pack(side="left", padx=6)
+        tk.Button(botones, text="+", command=lambda l=lista: self._agregar_correo(l), width=3).pack(pady=2)
+        tk.Button(botones, text="−", command=lambda l=lista: self._eliminar_correo(l), width=3).pack(pady=2)
+        return lista
+
+    def _agregar_correo(self, lista):
+        ventana = tk.Toplevel(self)
+        ventana.title("Agregar destinatario")
+        ventana.transient(self)
+        correo = tk.StringVar()
+        tk.Label(ventana, text="Correo electrónico", padx=14, pady=10).pack()
+        entrada = tk.Entry(ventana, textvariable=correo, width=38)
+        entrada.pack(padx=14)
+        entrada.focus_set()
+        def agregar():
+            valor = correo.get().strip()
+            if not self._correo_valido(valor):
+                mb.showerror("Correo incorrecto", "Escriba una dirección de correo válida.", parent=ventana)
+                return
+            if valor not in lista.get(0, "end"):
+                lista.insert("end", valor)
+            ventana.destroy()
+        tk.Button(ventana, text="AGREGAR", command=agregar, bg=VERDE, fg="white", padx=14, pady=6).pack(pady=12)
+
+    @staticmethod
+    def _eliminar_correo(lista):
+        seleccion = lista.curselection()
+        if seleccion:
+            lista.delete(seleccion[0])
+
+    @staticmethod
+    def _correo_valido(valor):
+        return bool(re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", valor))
 
     def _cambiar_impresora(self, _event=None):
         if self.modelo_impresora.get() == "POS80 0416:5011":
@@ -538,6 +683,32 @@ class VentanaConfiguracion(tk.Toplevel):
                 self.configuracion["tarifa"]["personalizada"][hora][fraccion] = self._numero(
                     variable.get(), f"Tarifa de hora {hora}"
                 )
+            self.configuracion["tarifa"]["promociones"] = {
+                "tarifa_normal": self.promo_normal.get(),
+                "tarifa_personalizada": self.promo_personalizada.get(),
+                "tipo": self.promo_tipo.get(),
+                "nombre": self.promo_nombre.get().strip(),
+                "seleccion": self.promo_seleccion.get().strip(),
+            }
+            correo_bd = self.email_base_datos.get().strip()
+            correos_corte = list(self.lista_cortes.get(0, "end"))
+            correos_notificacion = list(self.lista_notificaciones.get(0, "end"))
+            for correo in ([correo_bd] if correo_bd else []) + correos_corte + correos_notificacion:
+                if not self._correo_valido(correo):
+                    raise ValueError(f"Correo no válido: {correo}")
+            self.configuracion["envio_informacion"] = {
+                "base_datos": correo_bd,
+                "cortes": correos_corte,
+                "notificaciones": correos_notificacion,
+            }
+            self.configuracion["interface"].update({
+                "formato_fecha_interface": self.formato_fecha_interface.get(),
+                "formato_fecha_boleto": self.formato_fecha_boleto.get(),
+                "formato_reloj_expedidor": self.formato_reloj_expedidor.get(),
+                "fuente": self.fuente_sistema.get().strip() or "Arial",
+                "colores": {clave: variable.get() for clave, variable in self.colores_interface.items()},
+                "tamanos": {clave: int(variable.get()) for clave, variable in self.tamanos_interface.items()},
+            })
             self.configuracion["funcionamiento"].update({
                 "enviar_cortes": self.enviar_cortes.get(),
                 "confirmar_cierre": self.confirmar_cierre.get(),
