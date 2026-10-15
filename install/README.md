@@ -94,10 +94,19 @@ si el nombre de la base no termina en `_prueba`.
 - crea el grupo privado `estacionamiento`;
 - conserva la configuración en `/etc/estacionamiento/config.env`;
 - crea un entorno virtual en `/opt/estacionamiento/venv`;
-- instala y habilita solamente el servicio del punto seleccionado.
+- instala las dependencias gráficas, incluido el soporte ImageTk;
+- guarda configuración editable e imágenes en `/var/lib/estacionamiento`;
+- registra el punto seleccionado en el inicio automático del escritorio.
 
 El archivo privado queda con propietario `root`, grupo `estacionamiento` y
 permisos `640`. No se sube a GitHub.
+
+Si la aplicación no abre al iniciar el escritorio, consulte el registro del
+punto, por ejemplo:
+
+```bash
+cat /var/lib/estacionamiento/inicio-tpv.log
+```
 
 Después de instalar, complete los valores reales:
 
@@ -134,3 +143,4 @@ ESTACIONAMIENTO_PRINTER_PRODUCT_ID=5011
 
 Después de cambiarla, reinicie la aplicación TPV o cierre y vuelva a abrir su
 sesión gráfica.
+
