@@ -11,6 +11,7 @@ from requests import get
 from requests.exceptions import RequestException
 from operacion_tpv import Operacion
 from impresora import crear_impresora
+from configuracion_tpv import cargar_configuracion
 
 dir_cortes = "Cortes"
 
@@ -21,10 +22,24 @@ nombre_estacionamiento = 'Hidalgo 401'
 username = os.environ.get('ESTACIONAMIENTO_SMTP_USER', '')
 password = os.environ.get('ESTACIONAMIENTO_SMTP_PASSWORD', '')
 
-# Correos para enviar la informacion
-EMAIL_send_database = os.environ.get('ESTACIONAMIENTO_EMAIL_DATABASE', '')
-EMAIL_send_corte = os.environ.get('ESTACIONAMIENTO_EMAIL_CORTE', '')
-EMAIL_notification = os.environ.get('ESTACIONAMIENTO_EMAIL_NOTIFICACION', '')
+# Destinatarios editables desde el panel, con respaldo en variables de entorno.
+def _correos_entorno(nombre):
+    return [correo.strip() for correo in os.environ.get(nombre, '').replace(';', ',').split(',') if correo.strip()]
+
+
+def _destinatarios(clave, variable_entorno):
+    try:
+        valor = cargar_configuracion().get('envio_informacion', {}).get(clave)
+    except Exception:
+        valor = None
+    if isinstance(valor, str):
+        valor = [valor] if valor.strip() else []
+    return valor or _correos_entorno(variable_entorno)
+
+
+EMAIL_send_database = _destinatarios('base_datos', 'ESTACIONAMIENTO_EMAIL_DATABASE')
+EMAIL_send_corte = _destinatarios('cortes', 'ESTACIONAMIENTO_EMAIL_CORTE')
+EMAIL_notification = _destinatarios('notificaciones', 'ESTACIONAMIENTO_EMAIL_NOTIFICACION')
 
 
 class ToolsEmail:
@@ -197,7 +212,7 @@ class SendEmail:
 
         self.tools = ToolsEmail()
 
-    def send_mail(self, to_email: str, subject: str, message: str, zip_file: str) -> bool:
+    def send_mail(self, to_email: str | list[str], subject: str, message: str, zip_file: str) -> bool:
         """Envía un correo electronico con un archivo adjunto.
 
         Args:
@@ -209,6 +224,11 @@ class SendEmail:
             bool: True si el correo se envía exitosamente, False si hay algún error.
         """
         from_email = self.username
+        destinatarios = [to_email] if isinstance(to_email, str) else list(to_email)
+        destinatarios = [correo.strip() for correo in destinatarios if correo and correo.strip()]
+        if not destinatarios:
+            print("No hay destinatarios configurados para este envío.")
+            return False
 
         # Verificar la conexion a Internet antes de intentar enviar el correo
         if not self.tools.check_internet_connection():
@@ -218,7 +238,7 @@ class SendEmail:
             # Crea la estructura del correo
             msg = MIMEMultipart()
             msg['From'] = from_email
-            msg['To'] = to_email
+            msg['To'] = ', '.join(destinatarios)
             msg['Subject'] = subject
 
             msg.attach(MIMEText(message, 'plain'))
@@ -238,7 +258,7 @@ class SendEmail:
                 # Inicio de sesion
                 server.login(self.username, self.password)
                 # Enviar correo
-                server.sendmail(from_email, to_email, msg.as_string())
+                server.sendmail(from_email, destinatarios, msg.as_string())
                 # Terminar la sesion
                 server.quit()
 
