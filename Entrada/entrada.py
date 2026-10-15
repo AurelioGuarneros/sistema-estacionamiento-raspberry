@@ -9,6 +9,7 @@ from tkinter import messagebox as mb
 import operacion_entrada as operacion
 import time
 import traceback
+from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 # libreria de I/O (entradas / salidas)
@@ -95,10 +96,15 @@ class FormularioOperacion:
             self.ventana1, bg="#071a33", highlightthickness=0
         )
         self.pantalla.pack(fill="both", expand=True)
-        self._imagenes_estado = {
-            estado: self._crear_ilustracion(estado)
-            for estado in ("sin_auto", "auto", "oprima", "presionado", "ticket", "error")
-        }
+        self._imagenes_estado = self._cargar_imagenes_estado()
+        # Se usa un Label por encima del Canvas. En algunas versiones de
+        # Tk/Wayland las imágenes del Canvas no se repintaban en la Raspberry.
+        self.imagen_estado = tk.Label(
+            self.ventana1, bg="#102a46", bd=0, highlightthickness=0
+        )
+        self.imagen_estado.place(
+            relx=0.5, y=132, anchor="n", width=460, height=205
+        )
 
         # El lector RFID trabaja como teclado. La entrada queda fuera del área
         # visible para no distraer al conductor.
@@ -115,6 +121,39 @@ class FormularioOperacion:
             self.ventana1, text="", bg="#071a33", fg="white"
         )
         self._actualizar_visual("sin_auto", forzar=True)
+
+    def _cargar_imagenes_estado(self):
+        """Recorta las seis escenas del PNG instalado con el programa."""
+        estados = ("sin_auto", "auto", "oprima", "presionado", "ticket", "error")
+        ruta = Path(__file__).resolve().parent / "recursos" / "entrada_interactiva.jpg"
+        try:
+            lamina = Image.open(ruta).convert("RGB")
+            ancho = lamina.width // 3
+            alto = lamina.height // 2
+            posiciones = (
+                (0, 0), (1, 0), (2, 0),
+                (0, 1), (1, 1), (2, 1),
+            )
+            resultado = {}
+            for estado, (columna, fila) in zip(estados, posiciones):
+                recorte = lamina.crop((
+                    columna * ancho, fila * alto,
+                    (columna + 1) * ancho, (fila + 1) * alto,
+                ))
+                recorte.thumbnail((460, 205), Image.Resampling.LANCZOS)
+                lienzo = Image.new("RGB", (460, 205), "#102a46")
+                lienzo.paste(
+                    recorte,
+                    ((460 - recorte.width) // 2, (205 - recorte.height) // 2)
+                )
+                resultado[estado] = ImageTk.PhotoImage(lienzo, master=self.ventana1)
+            return resultado
+        except (OSError, ValueError) as error:
+            print("No se pudo cargar la lámina visual:", error)
+            return {
+                estado: self._crear_ilustracion(estado)
+                for estado in estados
+            }
 
     @staticmethod
     def _fuente_imagen(tamano):
@@ -176,9 +215,9 @@ class FormularioOperacion:
         return ImageTk.PhotoImage(imagen)
 
     def _mostrar_ilustracion(self, estado):
-        ancho = max(self.pantalla.winfo_width(), 800)
         imagen = self._imagenes_estado[estado]
-        self.pantalla.create_image(ancho / 2, 235, image=imagen)
+        self.imagen_estado.configure(image=imagen)
+        self.imagen_estado.lift()
 
     def _texto_centrado(self, y, texto, tamano, color="white", negrita=True):
         ancho = max(self.pantalla.winfo_width(), 800)
