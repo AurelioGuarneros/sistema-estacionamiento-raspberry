@@ -9,6 +9,7 @@ from tkinter import messagebox as mb
 import operacion_entrada as operacion
 import time
 import traceback
+from PIL import Image, ImageDraw, ImageFont, ImageTk
 
 # libreria de I/O (entradas / salidas)
 import RPi.GPIO as io
@@ -88,11 +89,16 @@ class FormularioOperacion:
         self._estado_visual = None
         self._fase_animacion = 0
         self._ticket_visible_hasta = 0
+        self._error_impresora_hasta = 0
 
         self.pantalla = tk.Canvas(
             self.ventana1, bg="#071a33", highlightthickness=0
         )
         self.pantalla.pack(fill="both", expand=True)
+        self._imagenes_estado = {
+            estado: self._crear_ilustracion(estado)
+            for estado in ("sin_auto", "auto", "oprima", "presionado", "ticket", "error")
+        }
 
         # El lector RFID trabaja como teclado. La entrada queda fuera del área
         # visible para no distraer al conductor.
@@ -109,6 +115,70 @@ class FormularioOperacion:
             self.ventana1, text="", bg="#071a33", fg="white"
         )
         self._actualizar_visual("sin_auto", forzar=True)
+
+    @staticmethod
+    def _fuente_imagen(tamano):
+        try:
+            return ImageFont.truetype(
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", tamano
+            )
+        except OSError:
+            return ImageFont.load_default()
+
+    def _crear_ilustracion(self, estado):
+        """Genera ilustraciones grandes sin depender de archivos externos."""
+        imagen = Image.new("RGB", (460, 205), "#102a46")
+        dibujo = ImageDraw.Draw(imagen)
+        blanco = "#f7fbff"
+        azul = "#4db8ff"
+        verde = "#40e887"
+        amarillo = "#ffc247"
+        gris = "#7890a8"
+
+        if estado in ("sin_auto", "auto"):
+            dibujo.rounded_rectangle((15, 145, 445, 195), 18, fill="#26394d")
+            for x in range(35, 430, 70):
+                dibujo.rectangle((x, 167, x + 38, 174), fill="#f5dd70")
+            if estado == "sin_auto":
+                dibujo.ellipse((180, 32, 280, 132), outline=gris, width=9)
+                dibujo.line((200, 112, 260, 52), fill=gris, width=10)
+                dibujo.text((147, 4), "ÁREA LIBRE", font=self._fuente_imagen(26), fill=blanco)
+            else:
+                dibujo.rounded_rectangle((95, 91, 365, 158), 18, fill=verde)
+                dibujo.polygon(((155, 91), (195, 45), (295, 45), (335, 91)), fill=verde)
+                dibujo.polygon(((183, 85), (208, 55), (282, 55), (310, 85)), fill="#bce8ff")
+                dibujo.ellipse((130, 136, 190, 196), fill="#17202a", outline=blanco, width=5)
+                dibujo.ellipse((280, 136, 340, 196), fill="#17202a", outline=blanco, width=5)
+                for radio in (25, 42, 59):
+                    dibujo.arc((22-radio, 98-radio, 22+radio, 98+radio), 300, 60, fill=verde, width=6)
+        elif estado in ("oprima", "presionado"):
+            hundido = 17 if estado == "presionado" else 0
+            dibujo.ellipse((105, 25, 305, 195), fill="#09203a", outline=azul, width=8)
+            dibujo.ellipse((135, 45 + hundido, 275, 185 + hundido), fill="#e85e3b" if hundido else amarillo, outline=blanco, width=7)
+            # Mano y dedo claramente visibles.
+            dibujo.rounded_rectangle((310, 72 + hundido, 442, 137 + hundido), 24, fill="#ffd2a6", outline="#8a5834", width=4)
+            dibujo.rounded_rectangle((260, 88 + hundido, 382, 132 + hundido), 20, fill="#ffd2a6", outline="#8a5834", width=4)
+            dibujo.polygon(((260, 89 + hundido), (205, 110 + hundido), (260, 132 + hundido)), fill="#ffd2a6")
+            dibujo.text((326, 151), "PULSE", font=self._fuente_imagen(23), fill=blanco)
+        elif estado == "ticket":
+            dibujo.rounded_rectangle((95, 8, 365, 197), 15, fill=blanco, outline=verde, width=8)
+            dibujo.text((151, 22), "BOLETO", font=self._fuente_imagen(28), fill="#17365d")
+            for x, y, medida in ((130,70,42),(185,72,25),(235,68,46),(295,75,26),(145,125,28),(195,112,48),(260,120,35),(305,115,24)):
+                dibujo.rectangle((x, y, x + medida, y + medida), fill="#071a33")
+            dibujo.text((126, 169), "RETIRE SU TICKET", font=self._fuente_imagen(19), fill="#17365d")
+        else:
+            dibujo.rounded_rectangle((70, 20, 390, 175), 18, fill="#461b22", outline="#ff6b6b", width=8)
+            dibujo.rounded_rectangle((125, 45, 335, 130), 10, fill=blanco)
+            dibujo.rectangle((155, 15, 305, 65), fill="#d9e4ec", outline="#26394d", width=4)
+            dibujo.line((105, 36, 355, 160), fill="#ff4545", width=16)
+            dibujo.line((355, 36, 105, 160), fill="#ff4545", width=16)
+            dibujo.text((95, 176), "IMPRESORA SIN CONEXIÓN", font=self._fuente_imagen(20), fill="#ffb3b3")
+        return ImageTk.PhotoImage(imagen)
+
+    def _mostrar_ilustracion(self, estado):
+        ancho = max(self.pantalla.winfo_width(), 800)
+        imagen = self._imagenes_estado[estado]
+        self.pantalla.create_image(ancho / 2, 235, image=imagen)
 
     def _texto_centrado(self, y, texto, tamano, color="white", negrita=True):
         ancho = max(self.pantalla.winfo_width(), 800)
@@ -217,29 +287,33 @@ class FormularioOperacion:
         self._texto_centrado(68, "ENTRADA", 15, "#9dd8ff")
 
         if estado == "sin_auto":
-            self._dibujar_auto(False)
+            self._mostrar_ilustracion("sin_auto")
             self._texto_centrado(122, "NO HAY VEHÍCULO", 25, "#c8d6e5")
             self._texto_centrado(348, "Avance hasta el sensor", 20, "#9dd8ff")
         elif estado == "auto":
-            self._dibujar_auto(True)
+            self._mostrar_ilustracion("auto")
             self._texto_centrado(122, "VEHÍCULO DETECTADO", 25, "#41f08a")
             self._texto_centrado(348, "Permanezca detenido un momento", 19, "#dcecff")
         elif estado == "oprima":
-            self._dibujar_boton(False)
+            self._mostrar_ilustracion("oprima")
             self._texto_centrado(122, "OPRIMA EL BOTÓN", 29, "#ffcc4d")
             self._texto_centrado(356, "Un solo toque para recibir su boleto", 18, "#dcecff")
         elif estado == "presionado":
-            self._dibujar_boton(True)
+            self._mostrar_ilustracion("presionado")
             self._texto_centrado(122, "BOTÓN PRESIONADO", 27, "#ffcc4d")
             self._texto_centrado(356, "Estamos preparando su boleto…", 19, "#dcecff")
         elif estado == "ticket":
-            self._dibujar_ticket()
+            self._mostrar_ilustracion("ticket")
             self._texto_centrado(122, "TOME SU BOLETO", 30, "#41f08a")
             self._texto_centrado(356, "La barrera está abriendo", 19, "#dcecff")
         elif estado == "avance":
-            self._dibujar_auto(True)
+            self._mostrar_ilustracion("auto")
             self._texto_centrado(122, "PUEDE AVANZAR", 30, "#41f08a")
             self._texto_centrado(348, "Gracias por su visita", 20, "#dcecff")
+        elif estado == "error":
+            self._mostrar_ilustracion("error")
+            self._texto_centrado(115, "NO SE PUDO IMPRIMIR", 28, "#ff7777")
+            self._texto_centrado(362, "Solicite ayuda al encargado", 20, "#ffd0d0")
 
         meses = (
             "enero", "febrero", "marzo", "abril", "mayo", "junio",
@@ -315,6 +389,8 @@ class FormularioOperacion:
             BanImpresion = 1
             self._ticket_visible_hasta = 0
             estado = "sin_auto"
+        elif ahora_mono < self._error_impresora_hasta:
+            estado = "error"
         elif ahora_mono < self._ticket_visible_hasta:
             estado = "ticket"
         elif BanImpresion == 0:
@@ -340,10 +416,18 @@ class FormularioOperacion:
                 io.output(barrera, 0)
                 time.sleep(1)
                 io.output(barrera, 1)
-                self.agregarRegistroRFID()
                 BanImpresion = 0
-                self._ticket_visible_hasta = time.monotonic() + 5
-                estado = "ticket"
+                try:
+                    self.agregarRegistroRFID()
+                except Exception as error:
+                    print("ERROR DE IMPRESIÓN:", error)
+                    traceback.print_exc()
+                    self._error_impresora_hasta = time.monotonic() + 10
+                    estado = "error"
+                else:
+                    # Tiempo suficiente para leer el mensaje y retirar el boleto.
+                    self._ticket_visible_hasta = time.monotonic() + 8
+                    estado = "ticket"
         else:
             BotonArmado = 1
 
