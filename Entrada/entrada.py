@@ -52,7 +52,7 @@ BanBoton=0
 BanSenBoleto=0
 BotonArmado=0 #No se acepta hasta detectar primero el boton suelto
 # BanSenBoleto=0
-BanImpresion=0 #No ha impreso
+BanImpresion=1 #Al arrancar, todavía no se ha impreso boleto para el auto presente
 # Configuracion de las entradas y las salidas del micro
 # -----------------------------------------------------
 class ImpresoraNoDetectada(RuntimeError):
