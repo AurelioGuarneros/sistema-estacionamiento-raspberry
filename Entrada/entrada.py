@@ -76,6 +76,9 @@ class FormularioOperacion:
         self._boleto_sensor_visto = False
         self._boleto_sensor_retirado = False
         self._boleto_retirado_hasta = 0
+        self._barrera_ticket_hasta = 0
+        self._barrera_ticket_after_id = None
+        self._barrera_ticket_activada = False
 
         self.ExpedirRfid()
         # Leer primero los GPIO reales. Si check_inputs se ejecuta antes,
@@ -239,6 +242,11 @@ class FormularioOperacion:
         self.Pensionados()
         return 'break'
 
+    def _cerrar_barrera_ticket(self):
+        io.output(barrera, 1)
+        self._barrera_ticket_after_id = None
+        self._barrera_ticket_hasta = 0
+
     def Intloop(self): #Detecta presencia de automovil
         global BanLoop
         if io.input(loop) == io.LOW:
@@ -274,12 +282,18 @@ class FormularioOperacion:
             self.SenBol2.config(text="SALIDA DE BOLETO LIBRE (HI)", background="white")
 
         if self._boleto_generado and BanLoop == 1:
-            if BanSenBoleto:
+            if BanSenBoleto and not self._boleto_sensor_retirado:
                 self._boleto_sensor_visto = True
-                self._boleto_sensor_retirado = False
             elif self._boleto_sensor_visto and not self._boleto_sensor_retirado:
                 self._boleto_sensor_retirado = True
                 self._boleto_retirado_hasta = ahora_mono + 2
+                if not self._barrera_ticket_activada:
+                    self._barrera_ticket_activada = True
+                    self._barrera_ticket_hasta = ahora_mono + 1
+                    io.output(barrera, 0)
+                    self._barrera_ticket_after_id = self.ventana1.after(
+                        1000, self._cerrar_barrera_ticket
+                    )
 
         if BanLoop == 1:
             self.loopDet.config(text="HAY AUTO", background="#2e9d63", foreground="white")
@@ -292,6 +306,7 @@ class FormularioOperacion:
             self._boleto_sensor_visto = False
             self._boleto_sensor_retirado = False
             self._boleto_retirado_hasta = 0
+            self._barrera_ticket_activada = False
             estado_visual = "sin_auto"
 
         self.BotDet.config(
@@ -304,6 +319,8 @@ class FormularioOperacion:
         if BanLoop == 1 and self._boleto_generado:
             if BanSenBoleto:
                 self.SenBol.config(text="TOME SU BOLETO", background="#2e9d63", foreground="white")
+            elif ahora_mono < self._barrera_ticket_hasta:
+                self.SenBol.config(text="PASE - BARRERA ABIERTA", background="#2e9d63", foreground="white")
             elif self._boleto_sensor_retirado and ahora_mono < self._boleto_retirado_hasta:
                 self.SenBol.config(text="BOLETO RETIRADO", background="#2e9d63", foreground="white")
             elif not self._boleto_sensor_visto and ahora_mono < self._ticket_visible_hasta:
@@ -337,10 +354,6 @@ class FormularioOperacion:
                 estado_visual = "presionado"
                 self._mostrar_imagen_estado(estado_visual)
                 self.ventana1.update_idletasks()
-                # Conserva el accionamiento actual de la barrera.
-                io.output(barrera, 0)
-                time.sleep(1)
-                io.output(barrera, 1)
                 try:
                     self.agregarRegistroRFID()
                 except ImpresoraNoDetectada as error:
@@ -361,6 +374,7 @@ class FormularioOperacion:
                     self._boleto_sensor_visto = False
                     self._boleto_sensor_retirado = False
                     self._boleto_retirado_hasta = 0
+                    self._barrera_ticket_activada = False
                     self.SenBol.config(text="ESPERANDO DETECCIÓN DEL BOLETO", background="#ffcc4d", foreground="#17202a")
                     estado_visual = "ticket"
             else:
