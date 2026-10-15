@@ -72,6 +72,10 @@ class FormularioOperacion:
         self._rfid_en_proceso = False
         self._ticket_visible_hasta = 0
         self._error_impresora_hasta = 0
+        self._boleto_generado = False
+        self._boleto_sensor_visto = False
+        self._boleto_sensor_retirado = False
+        self._boleto_retirado_hasta = 0
 
         self.ExpedirRfid()
         # Leer primero los GPIO reales. Si check_inputs se ejecuta antes,
@@ -265,9 +269,17 @@ class FormularioOperacion:
         ahora_mono = time.monotonic()
         BanSenBoleto = 1 if io.input(SenBoleto) == io.LOW else 0
         if BanSenBoleto:
-            self.SenBol2.config(text="SENSOR BOLETO ACTIVO (LO)", background="#d4edda")
+            self.SenBol2.config(text="BOLETO PRESENTE (LO)", background="#d4edda")
         else:
-            self.SenBol2.config(text="SENSOR BOLETO LIBRE (HI)", background="white")
+            self.SenBol2.config(text="SALIDA DE BOLETO LIBRE (HI)", background="white")
+
+        if self._boleto_generado and BanLoop == 1:
+            if BanSenBoleto:
+                self._boleto_sensor_visto = True
+                self._boleto_sensor_retirado = False
+            elif self._boleto_sensor_visto and not self._boleto_sensor_retirado:
+                self._boleto_sensor_retirado = True
+                self._boleto_retirado_hasta = ahora_mono + 2
 
         if BanLoop == 1:
             self.loopDet.config(text="HAY AUTO", background="#2e9d63", foreground="white")
@@ -276,6 +288,10 @@ class FormularioOperacion:
             self.loopDet.config(text="NO HAY AUTO", background="#d9e1e8", foreground="#17202a")
             BanImpresion = 1
             self._ticket_visible_hasta = 0
+            self._boleto_generado = False
+            self._boleto_sensor_visto = False
+            self._boleto_sensor_retirado = False
+            self._boleto_retirado_hasta = 0
             estado_visual = "sin_auto"
 
         self.BotDet.config(
@@ -284,9 +300,22 @@ class FormularioOperacion:
             foreground="white" if BanBoton else "#17202a"
         )
 
-        # La imagen y el texto permanecen juntos mientras se retira el boleto.
-        if BanLoop == 1 and ahora_mono < self._ticket_visible_hasta:
-            self.SenBol.config(text="TOME SU BOLETO", background="#2e9d63", foreground="white")
+        # El GPIO16 confirma el boleto en la salida y su retiro.
+        if BanLoop == 1 and self._boleto_generado:
+            if BanSenBoleto:
+                self.SenBol.config(text="TOME SU BOLETO", background="#2e9d63", foreground="white")
+            elif self._boleto_sensor_retirado and ahora_mono < self._boleto_retirado_hasta:
+                self.SenBol.config(text="BOLETO RETIRADO", background="#2e9d63", foreground="white")
+            elif not self._boleto_sensor_visto and ahora_mono < self._ticket_visible_hasta:
+                self.SenBol.config(text="ESPERANDO DETECCIÓN DEL BOLETO", background="#ffcc4d", foreground="#17202a")
+            elif not self._boleto_sensor_visto:
+                self.SenBol.config(text="BOLETO NO DETECTADO - REVISE SALIDA", background="#ffcc4d", foreground="#17202a")
+            else:
+                self.SenBol.config(text="BOLETO YA GENERADO", background="#2e9d63", foreground="white")
+            estado_visual = "ticket"
+        elif BanLoop == 1 and BanSenBoleto and BanImpresion == 1:
+            BotonArmado = 0
+            self.SenBol.config(text="RETIRE EL BOLETO ANTERIOR", background="#ffcc4d", foreground="#17202a")
             estado_visual = "ticket"
         elif BanLoop == 1 and ahora_mono < self._error_impresora_hasta:
             self.SenBol.config(text="NO SE DETECTA LA IMPRESORA", background="#c62828", foreground="white")
@@ -328,7 +357,11 @@ class FormularioOperacion:
                 else:
                     BanImpresion = 0
                     self._ticket_visible_hasta = time.monotonic() + 8
-                    self.SenBol.config(text="TOME SU BOLETO", background="#2e9d63", foreground="white")
+                    self._boleto_generado = True
+                    self._boleto_sensor_visto = False
+                    self._boleto_sensor_retirado = False
+                    self._boleto_retirado_hasta = 0
+                    self.SenBol.config(text="ESPERANDO DETECCIÓN DEL BOLETO", background="#ffcc4d", foreground="#17202a")
                     estado_visual = "ticket"
             else:
                 self.SenBol.config(text="BOLETO YA GENERADO", background="#2e9d63", foreground="white")
