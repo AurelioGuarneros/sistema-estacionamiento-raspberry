@@ -22,5 +22,10 @@ set -a
 source "$CONFIGURACION"
 set +a
 
+DIRECTORIO_DATOS="${ESTACIONAMIENTO_DATA_DIR:-/var/lib/estacionamiento}"
+mkdir -p "$DIRECTORIO_DATOS"
+REGISTRO="$DIRECTORIO_DATOS/inicio-${PUNTO}.log"
 cd "$RAIZ/$CARPETA"
-exec "$RAIZ/venv/bin/python" "$RAIZ/$CARPETA/$PROGRAMA"
+printf '\n[%s] Inicio de %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$PUNTO" >> "$REGISTRO"
+exec "$RAIZ/venv/bin/python" "$RAIZ/$CARPETA/$PROGRAMA" >> "$REGISTRO" 2>&1
+
