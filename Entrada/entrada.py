@@ -357,7 +357,7 @@ class FormularioOperacion:
     def agregarRegistroRFID(self):
 #$$$$$$$$$$$$$$$$impresion    $$$$$$$$$$
         try:
-            p = Usb(0x04b8, 0x0e28, 0)
+            p = Usb(0x04b8, 0x0e15, 0)
             # python-escpos abre el USB de forma diferida al primer comando.
             # Forzamos la apertura ahora para detectar la impresora antes de
             # insertar el folio en la base de datos.
