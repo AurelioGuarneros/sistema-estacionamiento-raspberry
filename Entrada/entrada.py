@@ -52,7 +52,7 @@ BanLoop =0
 BanBoton=0
 BotonArmado=0 #No se acepta hasta detectar primero el boton suelto
 # BanSenBoleto=0
-BanImpresion=0 #No ha impreso
+BanImpresion=1 #Lista para imprimir el primer boleto
 # Configuracion de las entradas y las salidas del micro
 # -----------------------------------------------------
 class FormularioOperacion:
@@ -140,12 +140,9 @@ class FormularioOperacion:
                     columna * ancho, fila * alto,
                     (columna + 1) * ancho, (fila + 1) * alto,
                 ))
-                recorte.thumbnail((460, 205), Image.Resampling.LANCZOS)
-                lienzo = Image.new("RGB", (460, 205), "#102a46")
-                lienzo.paste(
-                    recorte,
-                    ((460 - recorte.width) // 2, (205 - recorte.height) // 2)
-                )
+                # Cada escena llena el área visual; así puede distinguirse
+                # claramente desde el automóvil.
+                lienzo = recorte.resize((460, 205), Image.Resampling.LANCZOS)
                 resultado[estado] = ImageTk.PhotoImage(lienzo, master=self.ventana1)
             return resultado
         except (OSError, ValueError) as error:
@@ -452,9 +449,6 @@ class FormularioOperacion:
                 BotonArmado = 0
                 self._actualizar_visual("presionado", forzar=True)
                 self.ventana1.update_idletasks()
-                io.output(barrera, 0)
-                time.sleep(1)
-                io.output(barrera, 1)
                 BanImpresion = 0
                 try:
                     self.agregarRegistroRFID()
@@ -464,6 +458,10 @@ class FormularioOperacion:
                     self._error_impresora_hasta = time.monotonic() + 10
                     estado = "error"
                 else:
+                    # La barrera sólo se abre después de imprimir correctamente.
+                    io.output(barrera, 0)
+                    time.sleep(1)
+                    io.output(barrera, 1)
                     # Tiempo suficiente para leer el mensaje y retirar el boleto.
                     self._ticket_visible_hasta = time.monotonic() + 8
                     estado = "ticket"
