@@ -327,6 +327,7 @@ instalar_raspberry() {
   getent group estacionamiento >/dev/null || groupadd --system estacionamiento
   usermod -a -G estacionamiento,gpio,lp,dialout "$USUARIO_SERVICIO"
   install -d -o root -g estacionamiento -m 0750 /etc/estacionamiento
+  install -d -o root -g estacionamiento -m 0770 /var/lib/estacionamiento
   instalar_configuracion_privada
   configurar_impresora_tpv
 
@@ -351,3 +352,4 @@ case "$MODO" in
   raspberry) instalar_raspberry ;;
   *) mostrar_uso; exit 2 ;;
 esac
+
