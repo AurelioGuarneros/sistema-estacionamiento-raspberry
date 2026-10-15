@@ -26,7 +26,7 @@ limpiar_temporales() {
 trap limpiar_temporales EXIT
 
 instalar_dependencias_sistema() {
-  local paquetes=(python3-venv python3-tk git openssl libusb-1.0-0 usbutils)
+  local paquetes=(python3-venv python3-tk python3-pil.imagetk git openssl libusb-1.0-0 usbutils)
   if ! command -v apt-get >/dev/null 2>&1; then
     printf 'Este instalador requiere una distribución basada en Debian/Ubuntu.\n' >&2
     exit 1
