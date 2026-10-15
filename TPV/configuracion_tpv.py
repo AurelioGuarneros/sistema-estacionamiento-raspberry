@@ -24,8 +24,10 @@ TEXTO = "#17202a"
 ROJO = "#b3261e"
 VERDE = "#2e7d32"
 
-RUTA_CONFIG = Path(__file__).with_name("configuracion_tpv.json")
-RUTA_RECURSOS = Path(__file__).with_name("recursos_configuracion")
+RUTA_DATOS = Path(os.environ.get("ESTACIONAMIENTO_DATA_DIR", "/var/lib/estacionamiento"))
+RUTA_CONFIG = RUTA_DATOS / "configuracion_tpv.json"
+RUTA_CONFIG_ANTERIOR = Path(__file__).with_name("configuracion_tpv.json")
+RUTA_RECURSOS = RUTA_DATOS / "recursos_configuracion"
 
 
 def _tarifa_actual():
@@ -103,8 +105,9 @@ def _combinar(base, guardada):
 
 
 def cargar_configuracion():
+    ruta_lectura = RUTA_CONFIG if RUTA_CONFIG.exists() else RUTA_CONFIG_ANTERIOR
     try:
-        with RUTA_CONFIG.open("r", encoding="utf-8") as archivo:
+        with ruta_lectura.open("r", encoding="utf-8") as archivo:
             return _combinar(CONFIG_PREDETERMINADA, json.load(archivo))
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         configuracion = deepcopy(CONFIG_PREDETERMINADA)
@@ -126,6 +129,7 @@ def cargar_configuracion():
 
 
 def guardar_configuracion(configuracion):
+    RUTA_DATOS.mkdir(parents=True, exist_ok=True)
     temporal = RUTA_CONFIG.with_suffix(".json.tmp")
     with temporal.open("w", encoding="utf-8") as archivo:
         json.dump(configuracion, archivo, ensure_ascii=False, indent=2)
