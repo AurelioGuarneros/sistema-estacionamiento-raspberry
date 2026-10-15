@@ -358,6 +358,10 @@ class FormularioOperacion:
 #$$$$$$$$$$$$$$$$impresion    $$$$$$$$$$
         try:
             p = Usb(0x04b8, 0x0e28, 0)
+            # python-escpos abre el USB de forma diferida al primer comando.
+            # Forzamos la apertura ahora para detectar la impresora antes de
+            # insertar el folio en la base de datos.
+            p.open()
         except Exception as error:
             raise ImpresoraNoDetectada("No se detectó la impresora USB configurada") from error
         fechaEntro = datetime.today()
