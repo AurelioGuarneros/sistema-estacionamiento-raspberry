@@ -6,11 +6,15 @@ pueda cambiar tarifas e impresora sin editar codigo ni archivos del sistema.
 
 import json
 import os
+import shutil
 from copy import deepcopy
 from pathlib import Path
 import tkinter as tk
+from tkinter import filedialog
 from tkinter import messagebox as mb
 from tkinter import ttk
+
+from PIL import Image, ImageTk
 
 
 AZUL = "#17365d"
@@ -21,6 +25,7 @@ ROJO = "#b3261e"
 VERDE = "#2e7d32"
 
 RUTA_CONFIG = Path(__file__).with_name("configuracion_tpv.json")
+RUTA_RECURSOS = Path(__file__).with_name("recursos_configuracion")
 
 
 def _tarifa_actual():
@@ -41,10 +46,22 @@ def _tarifa_actual():
 CONFIG_PREDETERMINADA = {
     "general": {
         "nombre_estacionamiento": "Hidalgo 401",
+        "correo": "",
+        "cantidad_cajones": 0,
+        "nombre_punto": "TPV",
         "pantalla_completa": True,
         "mostrar_reloj": False,
         "placa_obligatoria": False,
     },
+    "empresa": {
+        "nombre": "", "rfc": "", "calle_numero": "", "colonia": "",
+        "codigo_postal": "", "alcaldia_municipio": "", "estado": "",
+    },
+    "sucursal": {
+        "calle_numero": "", "colonia": "", "codigo_postal": "", "estado": "",
+    },
+    "facturacion": {"correo": "", "telefono": ""},
+    "imagenes": {"logo": "", "vehiculo": ""},
     "interface": {
         "tema": "Azul",
         "tamano_texto": "Normal",
@@ -155,6 +172,9 @@ class VentanaConfiguracion(tk.Toplevel):
         tarifa = self.configuracion["tarifa"]
         funcionamiento = self.configuracion["funcionamiento"]
         self.nombre = tk.StringVar(value=general["nombre_estacionamiento"])
+        self.correo = tk.StringVar(value=general.get("correo", ""))
+        self.cantidad_cajones = tk.StringVar(value=str(general.get("cantidad_cajones", 0)))
+        self.nombre_punto = tk.StringVar(value=general.get("nombre_punto", "TPV"))
         self.pantalla_completa = tk.BooleanVar(value=general["pantalla_completa"])
         self.mostrar_reloj = tk.BooleanVar(value=general["mostrar_reloj"])
         self.placa_obligatoria = tk.BooleanVar(value=general["placa_obligatoria"])
@@ -166,6 +186,16 @@ class VentanaConfiguracion(tk.Toplevel):
         self.boleto_perdido = tk.StringVar(value=str(tarifa["boleto_perdido"]))
         self.enviar_cortes = tk.BooleanVar(value=funcionamiento["enviar_cortes"])
         self.confirmar_cierre = tk.BooleanVar(value=funcionamiento["confirmar_cierre"])
+        empresa = self.configuracion["empresa"]
+        sucursal = self.configuracion["sucursal"]
+        facturacion = self.configuracion["facturacion"]
+        imagenes = self.configuracion["imagenes"]
+        self.empresa_vars = {clave: tk.StringVar(value=valor) for clave, valor in empresa.items()}
+        self.sucursal_vars = {clave: tk.StringVar(value=valor) for clave, valor in sucursal.items()}
+        self.facturacion_vars = {clave: tk.StringVar(value=valor) for clave, valor in facturacion.items()}
+        self.logo = tk.StringVar(value=imagenes.get("logo", ""))
+        self.vehiculo = tk.StringVar(value=imagenes.get("vehiculo", ""))
+        self._imagenes_tk = {}
         self.valores_tarifa = {}
 
     def _construir(self):
@@ -191,6 +221,8 @@ class VentanaConfiguracion(tk.Toplevel):
         cuaderno.pack(fill="both", expand=True, padx=18, pady=16)
 
         self._pestana_general(cuaderno)
+        self._pestana_empresa(cuaderno)
+        self._pestana_imagenes(cuaderno)
         self._pestana_interface(cuaderno)
         self._pestana_tarifas(cuaderno)
         self._pestana_funcionamiento(cuaderno)
@@ -228,14 +260,120 @@ class VentanaConfiguracion(tk.Toplevel):
         )
         tarjeta.pack(fill="x")
         self._fila(tarjeta, "Nombre", self.nombre, 0, 36)
+        self._fila(tarjeta, "Correo para reportes", self.correo, 1, 36)
+        self._fila(tarjeta, "Cantidad de cajones", self.cantidad_cajones, 2, 12)
+        self._fila(tarjeta, "Nombre del punto en el boleto", self.nombre_punto, 3, 24)
+        clave_correo = bool(os.environ.get("ESTACIONAMIENTO_SMTP_PASSWORD", ""))
+        tk.Label(
+            tarjeta,
+            text="Contraseña de correo: " + ("CONFIGURADA EN ARCHIVO PRIVADO" if clave_correo else "NO CONFIGURADA"),
+            bg="white", fg=VERDE if clave_correo else ROJO, font=("Arial", 11, "bold")
+        ).grid(row=4, column=0, columnspan=2, sticky="w", padx=14, pady=8)
         tk.Checkbutton(
             tarjeta, text="Iniciar en pantalla completa", variable=self.pantalla_completa,
             bg="white", font=("Arial", 12), activebackground="white"
-        ).grid(row=1, column=0, columnspan=2, sticky="w", padx=14, pady=8)
+        ).grid(row=5, column=0, columnspan=2, sticky="w", padx=14, pady=8)
         tk.Checkbutton(
             tarjeta, text="Solicitar placa obligatoriamente", variable=self.placa_obligatoria,
             bg="white", font=("Arial", 12), activebackground="white"
-        ).grid(row=2, column=0, columnspan=2, sticky="w", padx=14, pady=8)
+        ).grid(row=6, column=0, columnspan=2, sticky="w", padx=14, pady=8)
+
+    def _grupo_datos(self, padre, titulo, variables, campos):
+        tarjeta = tk.LabelFrame(
+            padre, text=f" {titulo} ", bg="white", fg=AZUL,
+            font=("Arial", 13, "bold"), padx=10, pady=10
+        )
+        for fila, (clave, etiqueta) in enumerate(campos):
+            self._fila(tarjeta, etiqueta, variables[clave], fila, 28)
+        return tarjeta
+
+    def _pestana_empresa(self, cuaderno):
+        marco = self._marco(cuaderno, "Empresa y sucursal")
+        columnas = tk.Frame(marco, bg=FONDO)
+        columnas.pack(fill="both", expand=True)
+        empresa = self._grupo_datos(columnas, "Datos de la empresa", self.empresa_vars, (
+            ("nombre", "Nombre o razon social"), ("rfc", "RFC"),
+            ("calle_numero", "Calle y numero"), ("colonia", "Colonia"),
+            ("codigo_postal", "Codigo postal"), ("alcaldia_municipio", "Alcaldia o municipio"),
+            ("estado", "Entidad estatal"),
+        ))
+        empresa.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        derecha = tk.Frame(columnas, bg=FONDO)
+        derecha.pack(side="left", fill="both", expand=True, padx=(8, 0))
+        sucursal = self._grupo_datos(derecha, "Datos de la sucursal", self.sucursal_vars, (
+            ("calle_numero", "Calle y numero"), ("colonia", "Colonia"),
+            ("codigo_postal", "Codigo postal"), ("estado", "Entidad estatal"),
+        ))
+        sucursal.pack(fill="x", pady=(0, 14))
+        facturacion = self._grupo_datos(derecha, "Datos para facturacion", self.facturacion_vars, (
+            ("correo", "Correo"), ("telefono", "Numero telefonico"),
+        ))
+        facturacion.pack(fill="x")
+
+    def _pestana_imagenes(self, cuaderno):
+        marco = self._marco(cuaderno, "Imagenes y boleto")
+        tk.Label(
+            marco, text="Las imagenes se copiaran a una carpeta estable de la TPV.",
+            bg=FONDO, fg="#5d6d7e", font=("Arial", 11)
+        ).pack(anchor="w", pady=(0, 12))
+        contenedor = tk.Frame(marco, bg=FONDO)
+        contenedor.pack(fill="both", expand=True)
+        for columna, (tipo, titulo, variable) in enumerate((
+            ("logo", "Logo de la empresa", self.logo),
+            ("vehiculo", "Imagen de marcas o vehiculo", self.vehiculo),
+        )):
+            tarjeta = tk.LabelFrame(
+                contenedor, text=f" {titulo} ", bg="white", fg=AZUL,
+                font=("Arial", 14, "bold"), padx=16, pady=16
+            )
+            tarjeta.grid(row=0, column=columna, sticky="nsew", padx=8)
+            contenedor.grid_columnconfigure(columna, weight=1)
+            vista = tk.Label(tarjeta, text="Sin imagen seleccionada", bg="#eef2f5",
+                             fg="#5d6d7e", width=42, height=15)
+            vista.pack(fill="both", expand=True, pady=(0, 12))
+            setattr(self, f"vista_{tipo}", vista)
+            tk.Button(
+                tarjeta, text="SELECCIONAR IMAGEN",
+                command=lambda t=tipo: self._seleccionar_imagen(t),
+                bg=AZUL, fg="white", font=("Arial", 11, "bold"),
+                padx=14, pady=8, relief="flat"
+            ).pack()
+            if variable.get():
+                self._mostrar_imagen(tipo, variable.get())
+
+    def _seleccionar_imagen(self, tipo):
+        ruta = filedialog.askopenfilename(
+            parent=self, title="Seleccionar imagen",
+            filetypes=(("Imagenes", "*.png *.jpg *.jpeg *.bmp"), ("Todos", "*.*"))
+        )
+        if not ruta:
+            return
+        (self.logo if tipo == "logo" else self.vehiculo).set(ruta)
+        self._mostrar_imagen(tipo, ruta)
+
+    def _mostrar_imagen(self, tipo, ruta):
+        vista = getattr(self, f"vista_{tipo}")
+        try:
+            imagen = Image.open(ruta)
+            imagen.thumbnail((390, 260), Image.Resampling.LANCZOS)
+            foto = ImageTk.PhotoImage(imagen)
+            self._imagenes_tk[tipo] = foto
+            vista.configure(image=foto, text="")
+        except (OSError, ValueError):
+            vista.configure(image="", text="No se pudo abrir la imagen")
+
+    @staticmethod
+    def _guardar_imagen(origen, nombre):
+        if not origen:
+            return ""
+        ruta = Path(origen)
+        if not ruta.is_file():
+            raise ValueError(f"No se encontro la imagen: {ruta}")
+        RUTA_RECURSOS.mkdir(parents=True, exist_ok=True)
+        destino = RUTA_RECURSOS / f"{nombre}{ruta.suffix.lower()}"
+        if ruta.resolve() != destino.resolve():
+            shutil.copy2(ruta, destino)
+        return str(destino)
 
     def _pestana_interface(self, cuaderno):
         marco = self._marco(cuaderno, "Interface")
@@ -360,10 +498,26 @@ class VentanaConfiguracion(tk.Toplevel):
                 raise ValueError("El nombre del estacionamiento es obligatorio")
             self.configuracion["general"].update({
                 "nombre_estacionamiento": self.nombre.get().strip(),
+                "correo": self.correo.get().strip(),
+                "cantidad_cajones": int(self._numero(self.cantidad_cajones.get(), "Cantidad de cajones")),
+                "nombre_punto": self.nombre_punto.get().strip(),
                 "pantalla_completa": self.pantalla_completa.get(),
                 "mostrar_reloj": self.mostrar_reloj.get(),
                 "placa_obligatoria": self.placa_obligatoria.get(),
             })
+            self.configuracion["empresa"] = {
+                clave: variable.get().strip() for clave, variable in self.empresa_vars.items()
+            }
+            self.configuracion["sucursal"] = {
+                clave: variable.get().strip() for clave, variable in self.sucursal_vars.items()
+            }
+            self.configuracion["facturacion"] = {
+                clave: variable.get().strip() for clave, variable in self.facturacion_vars.items()
+            }
+            self.configuracion["imagenes"] = {
+                "logo": self._guardar_imagen(self.logo.get(), "logo_empresa"),
+                "vehiculo": self._guardar_imagen(self.vehiculo.get(), "imagen_vehiculo"),
+            }
             modelo = self.modelo_impresora.get()
             self.configuracion["impresora"].update({
                 "modelo": modelo,
@@ -392,3 +546,4 @@ class VentanaConfiguracion(tk.Toplevel):
             self.al_guardar(self.configuracion)
         mb.showinfo("Configuracion", "Los cambios se guardaron correctamente.", parent=self)
         self.destroy()
+
