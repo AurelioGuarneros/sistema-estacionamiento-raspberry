@@ -6,7 +6,7 @@ import qrcode
 class Operacion:
     def __init__(self):
         # La base de datos central esta en la Raspberry TPV.
-        self.host = os.environ.get("ESTACIONAMIENTO_DB_HOST", "169.254.70.94")
+        self.host = os.environ.get("ESTACIONAMIENTO_DB_HOST", "192.168.1.210")
         self.user = os.environ.get("ESTACIONAMIENTO_DB_USER", "")
         self.password = os.environ.get("ESTACIONAMIENTO_DB_PASSWORD", "")
         self.database = os.environ.get("ESTACIONAMIENTO_DB_NAME", "Parqueadero1")
