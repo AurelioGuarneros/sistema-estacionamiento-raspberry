@@ -11,7 +11,7 @@ import operacion_entrada as operacion
 import time
 import traceback
 from pathlib import Path
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageOps
 
 # libreria de I/O (entradas / salidas)
 import RPi.GPIO as io
@@ -65,7 +65,9 @@ class FormularioOperacion:
         self.operacion1=operacion.Operacion()
         self.ventana1=tk.Tk()
         self.ventana1.title("BOLETERA DE ENTRADA")
-        self.ventana1.configure(bg = 'blue')
+        self.ventana1.configure(bg="#eef3f8")
+        self.ventana1.grid_rowconfigure(0, weight=1)
+        self.ventana1.grid_columnconfigure(0, weight=1)
         self.cuaderno1 = ttk.Notebook(self.ventana1)
         self.cuaderno1.config(cursor="")
         self._rfid_after_id = None
@@ -88,25 +90,34 @@ class FormularioOperacion:
         self.Intloop()
         self.check_inputs()
 
-        self.cuaderno1.grid(column=0, row=0, padx=5, pady=5)
+        self.cuaderno1.grid(column=0, row=0, padx=0, pady=0, sticky="nsew")
+        self.ventana1.after(300, self._activar_pantalla_completa)
         self.ventana1.mainloop()
     ###########################Inicia Pagina1##########################
 # Funcion de lectura de las entradas
 # -----------------------------------
+    def _activar_pantalla_completa(self):
+        """Aplica fullscreen cuando la ventana ya está mapeada en el escritorio."""
+        try:
+            self.ventana1.update_idletasks()
+            self.ventana1.attributes("-fullscreen", True)
+        except tk.TclError:
+            self.ventana1.state("zoomed")
+
+    def _salir_pantalla_completa(self, _evento=None):
+        self.ventana1.attributes("-fullscreen", False)
+        return "break"
+
+    def _alternar_pantalla_completa(self, _evento=None):
+        actual = self.ventana1.attributes("-fullscreen")
+        activo = str(actual).lower() in ("1", "true", "yes")
+        self.ventana1.attributes("-fullscreen", not activo)
+        return "break"
+
     def ExpedirRfid(self):
-        """Pantalla clásica funcional con apoyo visual independiente."""
-        self.ventana1.attributes("-fullscreen", True)
-        self.ventana1.bind(
-            "<Escape>",
-            lambda _evento: self.ventana1.attributes("-fullscreen", False)
-        )
-        self.ventana1.bind(
-            "<F11>",
-            lambda _evento: self.ventana1.attributes(
-                "-fullscreen",
-                not self.ventana1.attributes("-fullscreen")
-            )
-        )
+        """Pantalla completa con paneles que aprovechan todo el espacio."""
+        self.ventana1.bind("<Escape>", self._salir_pantalla_completa)
+        self.ventana1.bind("<F11>", self._alternar_pantalla_completa)
         self.pagina1 = tk.Frame(self.cuaderno1, bg="#eef3f8")
         self.cuaderno1.add(self.pagina1, text="Entrada")
         self.pagina1.grid_columnconfigure(0, weight=1)
@@ -159,8 +170,13 @@ class FormularioOperacion:
         )
         visual.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         self._imagenes_estado = self._cargar_imagenes_estado()
-        self.imagen_estado = tk.Label(visual, bg="#102a46", bd=0)
+        self._imagenes_estado_tk = {}
+        self._estado_visual_actual = None
+        self.imagen_estado = tk.Label(
+            visual, bg="#102a46", bd=0, anchor="center"
+        )
         self.imagen_estado.pack(fill="both", expand=True)
+        self.imagen_estado.bind("<Configure>", self._ajustar_imagen_estado)
 
         inferior = tk.Frame(self.pagina1, bg="#071a33", padx=18, pady=7)
         inferior.grid(row=2, column=0, sticky="ew")
@@ -213,18 +229,35 @@ class FormularioOperacion:
                     columna * ancho, fila * alto,
                     (columna + 1) * ancho, (fila + 1) * alto,
                 ))
-                recorte = recorte.resize((390, 245), Image.Resampling.LANCZOS)
-                imagenes[estado] = ImageTk.PhotoImage(
-                    recorte, master=self.ventana1
-                )
+                imagenes[estado] = recorte
         except (OSError, ValueError) as error:
             print("No se pudieron cargar las imágenes:", error)
         return imagenes
 
+    def _ajustar_imagen_estado(self, event=None):
+        estado = self._estado_visual_actual
+        original = self._imagenes_estado.get(estado)
+        if original is None:
+            return
+        ancho = event.width if event is not None else self.imagen_estado.winfo_width()
+        alto = event.height if event is not None else self.imagen_estado.winfo_height()
+        if ancho < 2 or alto < 2:
+            return
+        try:
+            imagen_ajustada = ImageOps.fit(
+                original, (ancho, alto), method=Image.Resampling.LANCZOS,
+                centering=(0.5, 0.5)
+            )
+            foto = ImageTk.PhotoImage(imagen_ajustada, master=self.ventana1)
+            self._imagenes_estado_tk[estado] = foto
+            self.imagen_estado.configure(image=foto, text="")
+        except (tk.TclError, ValueError):
+            pass
+
     def _mostrar_imagen_estado(self, estado):
-        imagen = self._imagenes_estado.get(estado)
-        if imagen is not None:
-            self.imagen_estado.configure(image=imagen, text="")
+        self._estado_visual_actual = estado
+        if self._imagenes_estado.get(estado) is not None:
+            self._ajustar_imagen_estado()
         else:
             self.imagen_estado.configure(
                 image="", text=estado.replace("_", " ").upper(),
