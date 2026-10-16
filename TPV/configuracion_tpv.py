@@ -583,7 +583,14 @@ class VentanaConfiguracion(tk.Toplevel):
             font=("Arial", 14, "bold"), padx=12, pady=12
         )
         envios.pack(side="left", fill="both", expand=True, padx=(8, 0))
-        self._fila(envios, "Respaldo de base de datos", self.email_base_datos, 0, 32)
+        respaldo = tk.LabelFrame(
+            envios, text=" Respaldo de base de datos ", bg="white", padx=8, pady=7
+        )
+        respaldo.grid(row=0, column=0, columnspan=2, sticky="ew", padx=14, pady=7)
+        respaldo.grid_columnconfigure(0, weight=1)
+        tk.Entry(
+            respaldo, textvariable=self.email_base_datos, width=38, font=("Arial", 10)
+        ).grid(row=0, column=0, sticky="ew")
         self.lista_cortes = self._lista_correos(envios, "Destinatarios de corte", self.correos_corte, 1)
         self.lista_notificaciones = self._lista_correos(envios, "Destinatarios de notificaciones", self.correos_notificacion, 2)
 
