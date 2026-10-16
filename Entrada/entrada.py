@@ -244,9 +244,9 @@ class FormularioOperacion:
         if ancho < 2 or alto < 2:
             return
         try:
-            imagen_ajustada = ImageOps.fit(
+            imagen_ajustada = ImageOps.pad(
                 original, (ancho, alto), method=Image.Resampling.LANCZOS,
-                centering=(0.5, 0.5)
+                color="#102a46", centering=(0.5, 0.5)
             )
             foto = ImageTk.PhotoImage(imagen_ajustada, master=self.ventana1)
             self._imagenes_estado_tk[estado] = foto
