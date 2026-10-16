@@ -95,8 +95,18 @@ class FormularioOperacion:
 # -----------------------------------
     def ExpedirRfid(self):
         """Pantalla clásica funcional con apoyo visual independiente."""
-        self.ventana1.geometry("800x480")
-        self.ventana1.minsize(720, 430)
+        self.ventana1.attributes("-fullscreen", True)
+        self.ventana1.bind(
+            "<Escape>",
+            lambda _evento: self.ventana1.attributes("-fullscreen", False)
+        )
+        self.ventana1.bind(
+            "<F11>",
+            lambda _evento: self.ventana1.attributes(
+                "-fullscreen",
+                not self.ventana1.attributes("-fullscreen")
+            )
+        )
         self.pagina1 = tk.Frame(self.cuaderno1, bg="#eef3f8")
         self.cuaderno1.add(self.pagina1, text="Entrada")
         self.pagina1.grid_columnconfigure(0, weight=1)
