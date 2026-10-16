@@ -183,8 +183,12 @@ class VentanaConfiguracion(tk.Toplevel):
         self.configuracion = cargar_configuracion()
         self.title("Panel de configuracion")
         self.configure(bg=FONDO)
-        self.geometry("1180x760")
-        self.minsize(960, 650)
+        ancho_pantalla = self.winfo_screenwidth()
+        alto_pantalla = self.winfo_screenheight()
+        ancho = min(1180, max(800, ancho_pantalla))
+        alto = min(760, max(430, alto_pantalla))
+        self.geometry(f"{ancho}x{alto}+0+0")
+        self.minsize(min(960, ancho_pantalla), min(650, alto_pantalla))
         self.transient(master)
         self.protocol("WM_DELETE_WINDOW", self.destroy)
         self._crear_variables()
@@ -287,14 +291,21 @@ class VentanaConfiguracion(tk.Toplevel):
     def _marco(self, cuaderno, titulo):
         marco = tk.Frame(cuaderno, bg=FONDO, padx=24, pady=20)
         cuaderno.add(marco, text=titulo)
+        tk.Button(
+            marco, text="GUARDAR CAMBIOS", command=self._guardar,
+            bg=VERDE, fg="white", activebackground="#256b2a",
+            activeforeground="white", font=("Arial", 11, "bold"),
+            padx=16, pady=7, relief="flat"
+        ).pack(side="bottom", anchor="e", pady=(8, 0))
         return marco
 
     def _fila(self, padre, texto, variable, fila, ancho=28):
+        padre.grid_columnconfigure(1, weight=1)
         tk.Label(padre, text=texto, bg="white", fg=TEXTO, font=("Arial", 12, "bold")).grid(
             row=fila, column=0, sticky="w", padx=14, pady=10
         )
         entrada = tk.Entry(padre, textvariable=variable, width=ancho, font=("Arial", 12))
-        entrada.grid(row=fila, column=1, sticky="w", padx=14, pady=10)
+        entrada.grid(row=fila, column=1, sticky="ew", padx=14, pady=10)
         return entrada
 
     def _pestana_general(self, cuaderno):
@@ -581,36 +592,48 @@ class VentanaConfiguracion(tk.Toplevel):
         return [correo.strip() for correo in re.split(r"[,;]", valor or "") if correo.strip()]
 
     def _lista_correos(self, padre, titulo, valores, fila):
-        marco = tk.LabelFrame(padre, text=f" {titulo} ", bg="white", padx=7, pady=7)
+        marco = tk.LabelFrame(padre, text=f" {titulo} ", bg="white", padx=8, pady=7)
         marco.grid(row=fila, column=0, columnspan=2, sticky="ew", padx=14, pady=7)
-        lista = tk.Listbox(marco, height=3, width=46, font=("Arial", 10))
-        lista.pack(side="left", fill="x", expand=True)
+        marco.grid_columnconfigure(0, weight=1)
+        lista = tk.Listbox(marco, height=2, width=38, font=("Arial", 10))
+        lista.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 6))
         for correo in valores:
             lista.insert("end", correo)
-        botones = tk.Frame(marco, bg="white")
-        botones.pack(side="left", padx=6)
-        tk.Button(botones, text="+", command=lambda l=lista: self._agregar_correo(l), width=3).pack(pady=2)
-        tk.Button(botones, text="−", command=lambda l=lista: self._eliminar_correo(l), width=3).pack(pady=2)
-        return lista
 
-    def _agregar_correo(self, lista):
-        ventana = tk.Toplevel(self)
-        ventana.title("Agregar destinatario")
-        ventana.transient(self)
-        correo = tk.StringVar()
-        tk.Label(ventana, text="Correo electrónico", padx=14, pady=10).pack()
-        entrada = tk.Entry(ventana, textvariable=correo, width=38)
-        entrada.pack(padx=14)
-        entrada.focus_set()
+        entrada_correo = tk.Entry(
+            marco, width=28, font=("Arial", 10),
+            fg="#17202a"
+        )
+        entrada_correo.grid(row=1, column=0, sticky="ew", padx=(0, 6))
+        entrada_correo.insert(0, "Escriba aquí un correo")
+        entrada_correo.bind("<FocusIn>", lambda _e, w=entrada_correo:
+                            w.delete(0, "end") if w.get() == "Escriba aquí un correo" else None)
+
         def agregar():
-            valor = correo.get().strip()
+            valor = entrada_correo.get().strip()
             if not self._correo_valido(valor):
-                mb.showerror("Correo incorrecto", "Escriba una dirección de correo válida.", parent=ventana)
+                mb.showerror(
+                    "Correo incorrecto", "Escriba una dirección de correo válida.",
+                    parent=self
+                )
+                entrada_correo.focus_set()
                 return
             if valor not in lista.get(0, "end"):
                 lista.insert("end", valor)
-            ventana.destroy()
-        tk.Button(ventana, text="AGREGAR", command=agregar, bg=VERDE, fg="white", padx=14, pady=6).pack(pady=12)
+            entrada_correo.delete(0, "end")
+
+        tk.Button(
+            marco, text="AGREGAR", command=agregar, bg=AZUL, fg="white",
+            font=("Arial", 9, "bold"), padx=9, pady=5, relief="flat"
+        ).grid(row=1, column=1, sticky="e")
+        tk.Button(
+            marco, text="QUITAR SELECCIONADO",
+            command=lambda l=lista: self._eliminar_correo(l),
+            bg="#6c757d", fg="white", font=("Arial", 9, "bold"),
+            padx=8, pady=5, relief="flat"
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(5, 0))
+        entrada_correo.bind("<Return>", lambda _e: agregar())
+        return lista
 
     @staticmethod
     def _eliminar_correo(lista):
@@ -720,5 +743,4 @@ class VentanaConfiguracion(tk.Toplevel):
         if self.al_guardar:
             self.al_guardar(self.configuracion)
         mb.showinfo("Configuracion", "Los cambios se guardaron correctamente.", parent=self)
-        self.destroy()
 
